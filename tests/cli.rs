@@ -334,3 +334,42 @@ exclude-action = ["delete"]
 
     fs::remove_dir_all(root).expect("remove temp dir");
 }
+#[test]
+fn filters_only_create_actions() {
+    let root = temp_dir("filter_create_actions");
+    let plan_file = root.join("plan.ndjson");
+
+    fs::write(
+        &plan_file,
+        r#"{"@level":"info","change":{"resource":{"resource_type":"aws_instance","resource_name":"web"},"action":"create"}}
+{"@level":"info","change":{"resource":{"resource_type":"aws_s3_bucket","resource_name":"logs"},"action":"delete"}}
+"#,
+    )
+    .expect("write plan fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_terraform_plan_parser"))
+        .arg(".")
+        .current_dir(&root)
+        .arg("--plan-file")
+        .arg("plan.ndjson")
+        .arg("--format")
+        .arg("csv")
+        .arg("--include-action")
+        .arg("create")
+        .env("PATH", "")
+        .output()
+        .expect("run terraform_plan_parser");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "resource_type,resource_name,action\naws_instance,web,create\n"
+    );
+
+    fs::remove_dir_all(root).expect("remove temp dir");
+}
