@@ -1,7 +1,8 @@
 use std::{
     env, fs,
+    io::Write,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -184,6 +185,46 @@ fn renders_csv_from_plan_file_without_running_terraform() {
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
         "resource_type,resource_name,action\naws_instance,fixture_web,create\naws_s3_bucket,fixture_logs,update\n"
+    );
+}
+
+#[test]
+fn renders_csv_from_piped_stdin_before_plan_file_or_terraform() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/plan.ndjson");
+    let mut child = Command::new(env!("CARGO_BIN_EXE_terraform_plan_parser"))
+        .arg(".")
+        .arg("--plan-file")
+        .arg(&fixture)
+        .arg("--format")
+        .arg("csv")
+        .env("PATH", "")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn terraform_plan_parser");
+
+    child
+        .stdin
+        .as_mut()
+        .expect("capture child stdin")
+        .write_all(
+            br#"{"@level":"info","change":{"resource":{"resource_type":"google_compute_instance","resource_name":"piped"},"action":"delete"}}
+"#,
+        )
+        .expect("write stdin fixture");
+    drop(child.stdin.take());
+
+    let output = child.wait_with_output().expect("run terraform_plan_parser");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "resource_type,resource_name,action\ngoogle_compute_instance,piped,delete\n"
     );
 }
 
