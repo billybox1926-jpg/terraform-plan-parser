@@ -23,3 +23,8 @@ cd terraform-plan-parser
 
 # Build and install
 cargo install --path .
+```
+
+## Architecture
+
+See [Architecture Notes](docs/architecture.md) for system architecture, data flow, design decisions, and future extension points.

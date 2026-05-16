@@ -49,13 +49,21 @@ fn main() {
         .current_dir(&abs_dir)
         .output()
         .unwrap_or_else(|e| {
-            eprintln!("Failed to execute terraform in '{}': {}", abs_dir.display(), e);
+            eprintln!(
+                "Failed to execute terraform in '{}': {}",
+                abs_dir.display(),
+                e
+            );
             std::process::exit(1);
         });
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        eprintln!("Terraform plan failed in '{}':\n{}", abs_dir.display(), stderr);
+        eprintln!(
+            "Terraform plan failed in '{}':\n{}",
+            abs_dir.display(),
+            stderr
+        );
         std::process::exit(1);
     }
 
@@ -74,10 +82,7 @@ fn main() {
                         .as_str()
                         .unwrap_or("unknown")
                         .to_string();
-                    let action = change["action"]
-                        .as_str()
-                        .unwrap_or("noop")
-                        .to_string();
+                    let action = change["action"].as_str().unwrap_or("noop").to_string();
 
                     resource_changes.push((resource_type, resource_name, action));
                 }
@@ -86,7 +91,10 @@ fn main() {
     }
 
     if resource_changes.is_empty() {
-        println!("✅ No resource changes detected in '{}'.", abs_dir.display());
+        println!(
+            "✅ No resource changes detected in '{}'.",
+            abs_dir.display()
+        );
         return;
     }
 
