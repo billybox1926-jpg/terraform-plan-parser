@@ -28,7 +28,6 @@ struct ResourceChange {
 }
 
 #[derive(Debug, Deserialize)]
-#[derive(Debug, Deserialize)]
 struct PlanLine {
     change: Option<PlanChange>,
 }
@@ -153,11 +152,13 @@ fn main() {
         std::process::exit(1);
     }
 
+    // Get absolute path to avoid Windows relative-path issues with .current_dir()
     let abs_dir = std::env::current_dir()
         .unwrap_or_else(|_| Path::new(".").to_path_buf())
         .join(path);
     let abs_dir = abs_dir.canonicalize().unwrap_or(abs_dir);
 
+    // Verify terraform is available
     if Command::new("terraform").arg("version").output().is_err() {
         eprintln!("Error: 'terraform' not found in PATH. Is Terraform installed?");
         std::process::exit(1);
