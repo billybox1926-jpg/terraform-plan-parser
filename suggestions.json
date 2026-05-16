@@ -1,0 +1,126 @@
+{
+  "project": "terraform-plan-parser",
+  "current_status": {
+    "typed_parser": "done",
+    "clap_cli": "done",
+    "unit_tests": "done",
+    "output_formats": "done",
+    "gitignore": "done",
+    "docs": "done"
+  },
+  "next_tasks": [
+    {
+      "id": 1,
+      "priority": "high",
+      "title": "Add --plan-file support",
+      "description": "Allow reading pre-captured terraform plan JSON from a file instead of always executing terraform plan -json live.",
+      "scope": "src/main.rs",
+      "details": [
+        "Add --plan-file <PATH> to clap::Parser",
+        "When provided, skip Command::new(\"terraform\") and read file directly",
+        "File contains NDJSON output from terraform plan -json",
+        "Pass file contents to existing parse_plan_output()",
+        "Add test with sample plan file fixture"
+      ],
+      "branch": "feature/plan-file-support",
+      "prompt": "Work on branch feature/plan-file-support and open a PR to main. In src/main.rs, add a --plan-file <PATH> CLI argument to clap::Parser. When provided, skip the terraform execution and read the file directly into a String, then pass it to parse_plan_output(). Add a test with a sample plan file fixture. Keep all existing functionality intact. Run cargo fmt --check, cargo test, cargo clippy --all-targets --all-features -- -D warnings before committing."
+    },
+    {
+      "id": 2,
+      "priority": "high",
+      "title": "Add resource filtering",
+      "description": "Filter parsed resource changes by type pattern or action before rendering.",
+      "scope": "src/main.rs",
+      "details": [
+        "Add --include-type <PATTERN> to clap::Parser (glob pattern, comma-separated)",
+        "Add --exclude-action <ACTION> to clap::Parser (comma-separated)",
+        "Filter Vec<ResourceChange> after parse_plan_output()",
+        "Use glob crate for pattern matching",
+        "Add tests for filtering logic"
+      ],
+      "branch": "feature/filtering",
+      "prompt": "Work on branch feature/filtering and open a PR to main. In src/main.rs, add --include-type <PATTERN> and --exclude-action <ACTION> to the clap::Parser struct. After parse_plan_output(), filter the Vec<ResourceChange>: --include-type keeps only resources matching a glob pattern (e.g., aws_*), --exclude-action drops resources with matching actions (e.g., read). Both should support comma-separated values. Use the glob crate for pattern matching. Add tests for filtering logic. Run cargo fmt --check, cargo test, cargo clippy --all-targets --all-features -- -D warnings before committing."
+    },
+    {
+      "id": 3,
+      "priority": "medium",
+      "title": "Add verbose/logging mode",
+      "description": "Replace println!/eprintln! with tracing crate for configurable log levels.",
+      "scope": "src/main.rs",
+      "details": [
+        "Add --verbose / -v to clap::Parser",
+        "Replace println!/eprintln! with tracing crate",
+        "tracing::info! for normal output",
+        "tracing::warn! for skipped JSON lines",
+        "tracing::error! for terraform execution failures",
+        "Without --verbose, only show final summary",
+        "Add tracing-subscriber for console output formatting"
+      ],
+      "branch": "feature/logging",
+      "prompt": "Work on branch feature/logging and open a PR to main. In src/main.rs, add --verbose / -v to the clap::Parser. Replace all println!/eprintln! with the tracing crate: tracing::info! for normal output, tracing::warn! for skipped JSON lines, tracing::error! for terraform execution failures. Without --verbose, only show the final summary (suppress terraform stderr unless error). Add tracing-subscriber for console output formatting. Add tests verifying log levels. Run cargo fmt --check, cargo test, cargo clippy --all-targets --all-features -- -D warnings before committing."
+    },
+    {
+      "id": 4,
+      "priority": "medium",
+      "title": "Add --dry-run mode",
+      "description": "Print what terraform plan command would be executed without actually running it.",
+      "scope": "src/main.rs",
+      "details": [
+        "Add --dry-run flag to clap::Parser",
+        "Print resolved directory path and terraform command that would run",
+        "Print selected output format",
+        "Do not execute terraform or parse output",
+        "Add test verifying dry-run output"
+      ],
+      "branch": "feature/dry-run",
+      "prompt": "Work on branch feature/dry-run and open a PR to main. In src/main.rs, add --dry-run flag to clap::Parser. When set, print what terraform plan command would be executed and what the output format will be, but do not actually run Terraform. Useful for debugging CLI arguments and path resolution. Add a test verifying dry-run output. Run cargo fmt --check, cargo test, cargo clippy --all-targets --all-features -- -D warnings before committing."
+    },
+    {
+      "id": 5,
+      "priority": "low",
+      "title": "Add configuration file support",
+      "description": "Support .terraform-plan-parser.toml for persistent defaults and filters.",
+      "scope": "src/main.rs + new config module",
+      "details": [
+        "Read .terraform-plan-parser.toml from target directory",
+        "Support format, no_emoji, exclude_action defaults",
+        "CLI arguments override config file values",
+        "Use toml crate for parsing",
+        "Add tests for config loading and CLI override behavior"
+      ],
+      "branch": "feature/config-file",
+      "prompt": "Work on branch feature/config-file and open a PR to main. Add support for a .terraform-plan-parser.toml configuration file in the target directory. The file should allow setting default values for format, no_emoji, and exclude_action. CLI arguments should override config file values. Use the toml crate for parsing. Add tests for config loading and CLI override behavior. Run cargo fmt --check, cargo test, cargo clippy --all-targets --all-features -- -D warnings before committing."
+    },
+    {
+      "id": 6,
+      "priority": "low",
+      "title": "Add daily CI workflow",
+      "description": "GitHub Actions workflow that runs tests once daily plus manual trigger.",
+      "scope": ".github/workflows/daily-ci.yml + README.md",
+      "details": [
+        "Trigger on schedule: cron 0 8 * * * (daily 08:00 UTC)",
+        "Allow manual trigger via workflow_dispatch",
+        "Do NOT trigger on push or pull_request",
+        "Run cargo fmt --check, cargo test, cargo clippy",
+        "Add CI status badge to README.md"
+      ],
+      "branch": "feature/add-ci-cd",
+      "prompt": "Work on a new feature branch called feature/add-ci-cd and open a PR to main. Add a GitHub Actions workflow at .github/workflows/daily-ci.yml. Run on a schedule: once daily at 08:00 UTC (cron: '0 8 * * *'). Also allow manual trigger (workflow_dispatch). Do NOT trigger on push or pull_request. Run on ubuntu-latest. Steps: checkout, setup Rust toolchain, cargo fmt --check, cargo test, cargo clippy --all-targets --all-features -- -D warnings. Add a CI status badge to README.md that links to the scheduled workflow. Run cargo fmt --check, cargo test, cargo clippy --all-targets --all-features -- -D warnings before committing."
+    }
+  ],
+  "recommended_order": [
+    1,
+    2,
+    4,
+    3,
+    5,
+    6
+  ],
+  "notes": [
+    "All tasks should be done on feature branches with PRs to main",
+    "Run cargo fmt --check, cargo test, cargo clippy --all-targets --all-features -- -D warnings before every commit",
+    "Task 1 (--plan-file) is most practical for CI pipeline integration",
+    "Task 2 (filtering) builds on existing parser and is user-facing",
+    "Task 6 (CI) is lowest priority since user requested minimal automation"
+  ]
+}

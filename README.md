@@ -25,17 +25,6 @@ cd terraform-plan-parser
 cargo install --path .
 ```
 
-## Usage
-
-```bash
-terraform_plan_parser [DIRECTORY_OR_TFPLAN] [--format text|json|csv|table] [--no-emoji]
-```
-
-- `DIRECTORY_OR_TFPLAN` defaults to the current directory and may be either a Terraform project directory or a saved `.tfplan` file.
-- `--format` controls output rendering and defaults to `text`.
-- `--no-emoji` removes emoji from text output.
-- `--include-type`, `--exclude-type`, `--include-action`, and `--exclude-action` filter the rendered changes; comma-separated values are supported.
-
 ## Architecture
 
 See [Architecture Notes](docs/architecture.md) for system architecture, data flow, design decisions, and future extension points.
