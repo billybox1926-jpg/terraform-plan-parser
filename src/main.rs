@@ -28,7 +28,8 @@ struct ResourceChange {
 }
 
 #[derive(Debug, Deserialize)]
-#[derive(Debug, Deserialize)]`nstruct PlanLine {
+#[derive(Debug, Deserialize)]
+struct PlanLine {
     change: Option<PlanChange>,
 }
 
