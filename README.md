@@ -7,6 +7,7 @@ A lightweight Rust CLI tool that parses Terraform plan JSON output and displays 
 - **Colorful summary** — see at a glance what's being created (➕), updated (🔄), deleted (➖), or read (📖)
 - **Directory-aware** — point it at any Terraform project directory to run `terraform plan -json`
 - **Plan-file aware** — parse pre-generated NDJSON/full JSON plan files with `--plan-file`, or inspect saved `.tfplan` files through `terraform show -json`
+- **Dry-run mode** — preview the Terraform command or file read that would happen with `--dry-run` without executing Terraform
 - **Flexible filtering** — narrow results with comma-separated exact or glob patterns such as `--include-type aws_*`, `--exclude-type *_bucket`, or `--include-action cre*`
 - **Zero config** — just run it
 - **Cross-platform** — works on Windows, macOS, and Linux
@@ -56,6 +57,16 @@ terraform_plan_parser saved.tfplan
 ```
 
 `--plan-file` takes precedence if both a positional directory/file and `--plan-file` are provided.
+
+Preview what the CLI would do without executing Terraform:
+
+```bash
+terraform_plan_parser . --dry-run
+terraform_plan_parser --plan-file saved.tfplan --dry-run
+terraform_plan_parser --plan-file plan.json --dry-run
+```
+
+Dry-run mode still validates the selected input path. For live directories it prints the `terraform plan -json -input=false -no-color` command that would run, for saved `.tfplan` files it prints the `terraform show -json` command that would run, and for JSON plan files it reports that the file would be read without any Terraform command.
 
 ## Filtering
 

@@ -175,3 +175,29 @@ fn renders_csv_from_plan_file_without_running_terraform() {
         "resource_type,resource_name,action\naws_instance,fixture_web,create\naws_s3_bucket,fixture_logs,update\n"
     );
 }
+
+#[test]
+fn dry_run_reports_live_plan_command_without_running_terraform() {
+    let root = temp_dir("dry_run_live_plan");
+    let project_dir = root.join("project");
+    fs::create_dir_all(&project_dir).expect("create project dir");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_terraform_plan_parser"))
+        .arg(&project_dir)
+        .arg("--dry-run")
+        .env("PATH", "")
+        .output()
+        .expect("run terraform_plan_parser");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Dry run: would execute `terraform plan -json -input=false -no-color`"));
+    assert!(stdout.contains(&project_dir.display().to_string()));
+    assert!(String::from_utf8_lossy(&output.stderr).is_empty());
+
+    fs::remove_dir_all(root).expect("remove temp dir");
+}

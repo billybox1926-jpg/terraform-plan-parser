@@ -25,6 +25,9 @@ struct Cli {
     format: Format,
     #[arg(long)]
     no_emoji: bool,
+    /// Print the Terraform command that would run, then exit without executing Terraform.
+    #[arg(long)]
+    dry_run: bool,
     /// Include only resource types matching these comma-separated glob patterns.
     ///
     /// Exact values still work, and wildcards such as `aws_*` or `*instance`
@@ -386,6 +389,27 @@ fn verify_terraform_available() -> Result<(), String> {
         .map_err(|_| "Error: 'terraform' not found in PATH. Is Terraform installed?".to_string())
 }
 
+fn render_dry_run(input: &TerraformInput) -> String {
+    match input {
+        TerraformInput::Directory(directory) => format!(
+            "Dry run: would execute `terraform plan -json -input=false -no-color` in '{}'.\n",
+            directory.display()
+        ),
+        TerraformInput::JsonPlanFile(plan_file) => format!(
+            "Dry run: would read JSON Terraform plan file '{}'. No Terraform command would be executed.\n",
+            plan_file.display()
+        ),
+        TerraformInput::BinaryPlanFile(plan_file) => {
+            let current_dir = plan_file.parent().unwrap_or_else(|| Path::new("."));
+            format!(
+                "Dry run: would execute `terraform show -json {}` in '{}'.\n",
+                plan_file.display(),
+                current_dir.display()
+            )
+        }
+    }
+}
+
 fn load_changes(input: &TerraformInput) -> Result<Vec<ResourceChange>, String> {
     match input {
         TerraformInput::Directory(directory) => run_terraform_plan(directory),
@@ -507,6 +531,11 @@ fn main() {
         std::process::exit(1);
     });
 
+    if cli.dry_run {
+        print!("{}", render_dry_run(&input));
+        return;
+    }
+
     if input.requires_terraform() {
         verify_terraform_available().unwrap_or_else(|error| {
             eprintln!("{error}");
@@ -535,8 +564,8 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::{
-        csv_escape, filter_changes, parse_plan_output, render_csv, render_table, Cli, Format,
-        ResourceChange,
+        csv_escape, filter_changes, parse_plan_output, render_csv, render_dry_run, render_table,
+        Cli, Format, ResourceChange, TerraformInput,
     };
     use clap::Parser;
     use std::path::Path;
@@ -751,6 +780,48 @@ not-json
         assert!(output.contains("Resource Type"));
         assert!(output.contains("aws_instance"));
         assert!(output.contains("create"));
+    }
+
+    #[test]
+    fn accepts_dry_run_from_cli() {
+        let cli = Cli::parse_from(["terraform_plan_parser", "--dry-run"]);
+        assert!(cli.dry_run);
+    }
+
+    #[test]
+    fn renders_dry_run_for_directory_without_loading_changes() {
+        let output = render_dry_run(&TerraformInput::Directory(
+            Path::new("/tmp/project").to_path_buf(),
+        ));
+
+        assert_eq!(
+            output,
+            "Dry run: would execute `terraform plan -json -input=false -no-color` in '/tmp/project'.\n"
+        );
+    }
+
+    #[test]
+    fn renders_dry_run_for_binary_plan_file() {
+        let output = render_dry_run(&TerraformInput::BinaryPlanFile(
+            Path::new("/tmp/project/tfplan").to_path_buf(),
+        ));
+
+        assert_eq!(
+            output,
+            "Dry run: would execute `terraform show -json /tmp/project/tfplan` in '/tmp/project'.\n"
+        );
+    }
+
+    #[test]
+    fn renders_dry_run_for_json_plan_file_without_terraform_command() {
+        let output = render_dry_run(&TerraformInput::JsonPlanFile(
+            Path::new("/tmp/project/plan.json").to_path_buf(),
+        ));
+
+        assert_eq!(
+            output,
+            "Dry run: would read JSON Terraform plan file '/tmp/project/plan.json'. No Terraform command would be executed.\n"
+        );
     }
 
     #[test]

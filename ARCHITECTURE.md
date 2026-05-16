@@ -9,24 +9,26 @@
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                        User Shell                           │
-│  $ terraform_plan_parser [DIRECTORY] [--plan-file PATH]                        │
+│  $ terraform_plan_parser [DIRECTORY] [--plan-file PATH] [--dry-run]             │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    CLI Interface Layer                      │
 │  • Parse command-line arguments (paths, output, filters)    │
-│  • Validate directory exists and is a directory             │
+│  • Validate input path exists and resolve its plan source   │
+│  • Short-circuit in `--dry-run` mode after rendering intent │
 │  • Resolve absolute path (handles Windows relative paths)   │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                  Terraform Invocation Layer                 │
-│  • Verify `terraform` is available only for live plans or `.tfplan` files           │
+│  • Verify `terraform` is available only for live plans or `.tfplan` files │
 │  • Execute: `terraform plan -json -input=false -no-color`   │
+│  • Execute: `terraform show -json` for saved `.tfplan` files│
 │  • Capture stdout (JSON stream) and stderr                  │
-│  • Exit with code 1 if Terraform/file loading fails                      │
+│  • Exit with code 1 if Terraform/file loading fails         │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
@@ -92,8 +94,8 @@ src/
 │   ├── Cli              # clap-derived CLI help and argument parsing
 │   ├── parse_*          # Terraform JSON deserialization helpers
 │   ├── filter_*         # include/exclude exact and glob matching
-│   ├── render_*         # text, JSON, CSV, and table output
-│   └── main()           # entry point: args → input → parse → filter → render
+│   ├── render_*         # text, JSON, CSV, table, and dry-run output
+│   └── main()           # entry point: args → input → optional dry-run → parse → filter → render
 ```
 
 > **Note:** The project is intentionally kept as a single-file CLI for simplicity. As features grow, consider splitting into:
@@ -112,6 +114,7 @@ src/
 | **Exit codes** | `0` = success (or no changes), `1` = error (invalid dir, terraform missing, plan failed) |
 | **No config file** | Zero-configuration tool; all behavior is deterministic |
 | **Glob filters** | Resource type and action filters support exact values plus wildcard patterns while preserving comma-separated CLI behavior |
+| **Dry-run short-circuit** | `--dry-run` resolves and validates the input source, prints the command or file read that would happen, and exits before Terraform availability checks or plan loading |
 
 ## Dependencies
 
@@ -130,6 +133,11 @@ src/
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
 │   User Input    │────▶│   Validation    │────▶│   Early Exit    │
 │  (args, path)   │     │  (exists, dir)  │     │   (code 1)      │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   Dry-run Flag  │────▶│  Render Intent  │────▶│  Success Exit   │
+│   (optional)    │     │  (no Terraform) │     │   (code 0)      │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
 
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
