@@ -1,4 +1,4 @@
-# Architecture Notes
+# Architecture Notes — terraform-plan-parser
 
 ## Overview
 
@@ -6,7 +6,7 @@
 
 ## System Architecture
 
-```text
+```
 ┌─────────────────────────────────────────────────────────────┐
 │                        User Shell                           │
 │  $ terraform_plan_parser [DIRECTORY]                        │
@@ -35,15 +35,15 @@
 │  • Stream-read stdout line-by-line                          │
 │  • Parse each line as JSON via `serde_json`                 │
 │  • Extract: `change.resource.resource_type`                 │
-│  │         `change.resource.resource_name`                  │
-│  │         `change.action`                                  │
+│           `change.resource.resource_name`                   │
+│           `change.action`                                   │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                   Rendering Layer                           │
 │  • Map actions to emoji symbols:                            │
-│  │ create → ➕ | update → 🔄 | delete → ➖ | read → 📖      │
+│    create → ➕ | update → 🔄 | delete → ➖ | read → 📖      │
 │  • Print formatted summary table                            │
 │  • Handle empty state: "✅ No resource changes detected"    │
 └─────────────────────────────────────────────────────────────┘
@@ -51,7 +51,7 @@
 
 ## Data Flow
 
-```text
+```
 Terraform Project Directory
         │
         ▼
@@ -68,49 +68,48 @@ Terraform Project Directory
                                                     │
                                                     ▼
                                             ┌───────────────┐
-                                            │ Stdout Render │
-                                            │ (emoji + text)│
+                                            │  Stdout Render│
+                                            │  (emoji + text)│
                                             └───────────────┘
 ```
 
 ## Module Structure
 
-```text
+```
 src/
 ├── main.rs              # Single-file application (no submodules)
 │   ├── print_help()     # CLI help text
 │   └── main()           # Entry point: args → validate → run → parse → render
 ```
 
-The project is intentionally kept as a single-file CLI for simplicity. As features grow, consider splitting it into:
-
-- `cli.rs` — argument parsing
-- `terraform.rs` — Terraform process management
-- `parser.rs` — JSON deserialization models
-- `renderer.rs` — output formatting
+> **Note:** The project is intentionally kept as a single-file CLI for simplicity. As features grow, consider splitting into:
+> - `cli.rs` — argument parsing
+> - `terraform.rs` — Terraform process management
+> - `parser.rs` — JSON deserialization models
+> - `renderer.rs` — output formatting
 
 ## Key Design Decisions
 
 | Decision | Rationale |
-| --- | --- |
-| Single binary | Easy distribution; no runtime dependencies beyond Terraform. |
-| Stream parsing | `terraform plan -json` emits newline-delimited JSON (NDJSON), so parsing line-by-line avoids loading the entire output into memory. |
-| Absolute path resolution | Prevents Windows-specific issues where `.current_dir()` behaves unexpectedly with relative paths. |
-| Exit codes | `0` = success or no changes, `1` = error such as invalid directory, missing Terraform, or failed plan. |
-| No config file | Zero-configuration tool; all behavior is deterministic. |
+|----------|-----------|
+| **Single binary** | Easy distribution; no runtime dependencies beyond Terraform |
+| **Stream parsing** | `terraform plan -json` emits NDJSON (newline-delimited JSON); we parse line-by-line to avoid loading the entire output into memory |
+| **Absolute path resolution** | Prevents Windows-specific issues where `.current_dir()` behaves unexpectedly with relative paths |
+| **Exit codes** | `0` = success (or no changes), `1` = error (invalid dir, terraform missing, plan failed) |
+| **No config file** | Zero-configuration tool; all behavior is deterministic |
 
 ## Dependencies
 
 | Crate | Purpose |
-| --- | --- |
-| `serde` | Derive macros for JSON deserialization. |
-| `serde_json` | Runtime JSON parsing. |
+|-------|---------|
+| `serde` | Derive macros for JSON deserialization |
+| `serde_json` | Runtime JSON parsing |
 
-`requirements.txt` exists for documentation/reference only. Actual dependency management is via `Cargo.toml`.
+> `requirements.txt` exists for documentation/reference only. Actual dependency management is via `Cargo.toml`.
 
 ## Error Handling Strategy
 
-```text
+```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
 │   User Input    │────▶│   Validation    │────▶│   Early Exit    │
 │  (args, path)   │     │  (exists, dir)  │     │   (code 1)      │
@@ -129,19 +128,19 @@ The project is intentionally kept as a single-file CLI for simplicity. As featur
 
 ## Future Extension Points
 
-- **Structured output formats** — add `--format json|csv|table` flags.
-- **Filtering** — add filters such as `--include-type aws_instance` or `--exclude-action read`.
-- **Plan file support** — accept `.tfplan` files instead of requiring a live `terraform plan` invocation.
-- **Pre-flight checks** — validate Terraform version compatibility.
-- **CI/CD integration** — exit with different codes for create vs. delete actions.
-- **Configuration file** — support `.terraform-plan-parser.toml` for persistent filters.
+1. **Structured output formats** — Add `--format json|csv|table` flags
+2. **Filtering** — `--include-type aws_instance` or `--exclude-action read`
+3. **Plan file support** — Accept `.tfplan` files instead of live `terraform plan`
+4. **Pre-flight checks** — Validate Terraform version compatibility
+5. **CI/CD integration** — Exit with different codes for `create` vs `delete` actions
+6. **Configuration file** — `.terraform-plan-parser.toml` for persistent filters
 
 ## Technology Stack
 
 | Layer | Technology |
-| --- | --- |
+|-------|------------|
 | Language | Rust (Edition 2021) |
-| JSON Parsing | `serde` + `serde_json` |
-| Process Spawning | `std::process::Command` |
-| CLI Args | `std::env::args` manual parsing |
+| JSON Parsing | serde + serde_json |
+| Process Spawning | std::process::Command |
+| CLI Args | std::env::args (manual parsing) |
 | Target Platforms | Windows, macOS, Linux |
