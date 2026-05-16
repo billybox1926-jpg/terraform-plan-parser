@@ -201,3 +201,43 @@ fn dry_run_reports_live_plan_command_without_running_terraform() {
 
     fs::remove_dir_all(root).expect("remove temp dir");
 }
+
+#[test]
+fn verbose_flag_enables_debug_logging() {
+    let root = temp_dir("verbose_logging");
+    let project_dir = root.join("project");
+    fs::create_dir_all(&project_dir).expect("create project dir");
+
+    let quiet_output = Command::new(env!("CARGO_BIN_EXE_terraform_plan_parser"))
+        .arg(&project_dir)
+        .arg("--dry-run")
+        .output()
+        .expect("run terraform_plan_parser without verbose");
+
+    assert!(
+        quiet_output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&quiet_output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&quiet_output.stderr).is_empty());
+
+    let verbose_output = Command::new(env!("CARGO_BIN_EXE_terraform_plan_parser"))
+        .arg(&project_dir)
+        .arg("--dry-run")
+        .arg("--verbose")
+        .output()
+        .expect("run terraform_plan_parser with verbose");
+
+    assert!(
+        verbose_output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&verbose_output.stderr)
+    );
+    assert!(String::from_utf8_lossy(&verbose_output.stderr).contains("Verbose logging enabled"));
+    assert_eq!(
+        String::from_utf8_lossy(&quiet_output.stdout),
+        String::from_utf8_lossy(&verbose_output.stdout)
+    );
+
+    fs::remove_dir_all(root).expect("remove temp dir");
+}
