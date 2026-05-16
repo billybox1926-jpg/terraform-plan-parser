@@ -150,3 +150,28 @@ fn renders_json_from_mocked_saved_plan_file() {
 
     fs::remove_dir_all(root).expect("remove temp dir");
 }
+
+#[test]
+fn renders_csv_from_plan_file_without_running_terraform() {
+    let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/plan.ndjson");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_terraform_plan_parser"))
+        .arg(".")
+        .arg("--plan-file")
+        .arg(&fixture)
+        .arg("--format")
+        .arg("csv")
+        .env("PATH", "")
+        .output()
+        .expect("run terraform_plan_parser");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "resource_type,resource_name,action\naws_instance,fixture_web,create\naws_s3_bucket,fixture_logs,update\n"
+    );
+}

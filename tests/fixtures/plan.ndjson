@@ -1,0 +1,3 @@
+{"@level":"info","message":"Terraform will perform the following actions"}
+{"@level":"info","change":{"resource":{"resource_type":"aws_instance","resource_name":"fixture_web"},"action":"create"}}
+{"@level":"info","change":{"resource":{"resource_type":"aws_s3_bucket","resource_name":"fixture_logs"},"action":"update"}}

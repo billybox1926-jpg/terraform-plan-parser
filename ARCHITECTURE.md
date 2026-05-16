@@ -2,14 +2,14 @@
 
 ## Overview
 
-`terraform-plan-parser` is a single-binary Rust CLI tool that wraps `terraform plan -json`, parses the streaming JSON output, and prints a human-readable summary of resource changes.
+`terraform-plan-parser` is a single-binary Rust CLI tool that wraps `terraform plan -json` or reads pre-generated plan files, parses Terraform JSON output, and prints a human-readable summary of resource changes.
 
 ## System Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                        User Shell                           │
-│  $ terraform_plan_parser [DIRECTORY]                        │
+│  $ terraform_plan_parser [DIRECTORY] [--plan-file PATH]                        │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
@@ -23,16 +23,16 @@
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                  Terraform Invocation Layer                 │
-│  • Verify `terraform` binary is available in PATH           │
+│  • Verify `terraform` is available only for live plans or `.tfplan` files           │
 │  • Execute: `terraform plan -json -input=false -no-color`   │
 │  • Capture stdout (JSON stream) and stderr                  │
-│  • Exit with code 1 if terraform fails                      │
+│  • Exit with code 1 if Terraform/file loading fails                      │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                   JSON Parsing Layer                        │
-│  • Stream-read stdout line-by-line                          │
+│  • Stream-read live-plan stdout line-by-line or parse plan-file contents                          │
 │  • Parse each line as JSON via `serde_json`                 │
 │  • Extract: `change.resource.resource_type`                 │
 │           `change.resource.resource_name`                   │
@@ -130,7 +130,7 @@ src/
 
 1. **Structured output formats** — Add `--format json|csv|table` flags
 2. **Filtering** — `--include-type aws_instance` or `--exclude-action read`
-3. **Plan file support** — Accept `.tfplan` files instead of live `terraform plan`
+3. **Additional plan-source detection** — Keep expanding file/source handling while preserving `--plan-file` precedence
 4. **Pre-flight checks** — Validate Terraform version compatibility
 5. **CI/CD integration** — Exit with different codes for `create` vs `delete` actions
 6. **Configuration file** — `.terraform-plan-parser.toml` for persistent filters

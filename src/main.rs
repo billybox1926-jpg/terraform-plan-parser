@@ -1,6 +1,5 @@
 use clap::Parser;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::{
     io::{BufRead, BufReader, Read},
     path::{Path, PathBuf},
@@ -14,6 +13,13 @@ struct Cli {
     /// Terraform project directory or saved .tfplan file to inspect.
     #[arg(default_value = ".")]
     directory: String,
+    /// Read a pre-generated Terraform plan file instead of running terraform plan.
+    ///
+    /// Parses NDJSON from `terraform plan -json > plan.json` and full JSON from
+    /// `terraform show -json` directly. Saved `.tfplan` files are converted with
+    /// `terraform show -json`. Takes precedence over DIRECTORY.
+    #[arg(long, value_name = "PATH")]
+    plan_file: Option<PathBuf>,
     #[arg(long, value_enum, default_value = "text")]
     format: Format,
     #[arg(long)]
@@ -85,7 +91,14 @@ struct ShowChange {
 #[derive(Debug)]
 enum TerraformInput {
     Directory(PathBuf),
-    PlanFile(PathBuf),
+    JsonPlanFile(PathBuf),
+    BinaryPlanFile(PathBuf),
+}
+
+impl TerraformInput {
+    fn requires_terraform(&self) -> bool {
+        matches!(self, Self::Directory(_) | Self::BinaryPlanFile(_))
+    }
 }
 
 fn unknown_value() -> String {
@@ -104,7 +117,6 @@ fn parse_plan_line(line: &str) -> Option<ResourceChange> {
     })
 }
 
-#[cfg(test)]
 fn parse_plan_output(stdout: &str) -> Vec<ResourceChange> {
     let line_changes: Vec<ResourceChange> = stdout.lines().filter_map(parse_plan_line).collect();
 
@@ -284,30 +296,66 @@ fn csv_escape(value: &str) -> String {
     }
 }
 
-fn resolve_input(path: &str) -> Result<TerraformInput, String> {
+fn resolve_input(cli: &Cli) -> Result<TerraformInput, String> {
+    if let Some(plan_file) = &cli.plan_file {
+        return resolve_plan_file_input(plan_file);
+    }
+
+    resolve_positional_input(&cli.directory)
+}
+
+fn resolve_plan_file_input(path: &Path) -> Result<TerraformInput, String> {
+    if !path.exists() {
+        return Err(format!("Path does not exist: {}", path.display()));
+    }
+
+    let abs_path = absolutize(path);
+    if !abs_path.is_file() {
+        return Err(format!(
+            "--plan-file path is not a file: {}",
+            path.display()
+        ));
+    }
+
+    if is_tfplan_file(&abs_path) {
+        Ok(TerraformInput::BinaryPlanFile(abs_path))
+    } else {
+        Ok(TerraformInput::JsonPlanFile(abs_path))
+    }
+}
+
+fn resolve_positional_input(path: &str) -> Result<TerraformInput, String> {
     let path = Path::new(path);
     if !path.exists() {
         return Err(format!("Path does not exist: {}", path.display()));
     }
 
-    let abs_path = std::env::current_dir()
-        .unwrap_or_else(|_| Path::new(".").to_path_buf())
-        .join(path)
-        .canonicalize()
-        .unwrap_or_else(|_| path.to_path_buf());
+    let abs_path = absolutize(path);
 
     if abs_path.is_dir() {
         return Ok(TerraformInput::Directory(abs_path));
     }
 
-    if abs_path.is_file() && abs_path.extension().is_some_and(|ext| ext == "tfplan") {
-        return Ok(TerraformInput::PlanFile(abs_path));
+    if abs_path.is_file() && is_tfplan_file(&abs_path) {
+        return Ok(TerraformInput::BinaryPlanFile(abs_path));
     }
 
     Err(format!(
         "Path is not a directory or .tfplan file: {}",
         path.display()
     ))
+}
+
+fn absolutize(path: &Path) -> PathBuf {
+    std::env::current_dir()
+        .unwrap_or_else(|_| Path::new(".").to_path_buf())
+        .join(path)
+        .canonicalize()
+        .unwrap_or_else(|_| path.to_path_buf())
+}
+
+fn is_tfplan_file(path: &Path) -> bool {
+    path.extension().is_some_and(|ext| ext == "tfplan")
 }
 
 fn verify_terraform_available() -> Result<(), String> {
@@ -318,11 +366,23 @@ fn verify_terraform_available() -> Result<(), String> {
         .map_err(|_| "Error: 'terraform' not found in PATH. Is Terraform installed?".to_string())
 }
 
-fn run_terraform(input: &TerraformInput) -> Result<Vec<ResourceChange>, String> {
+fn load_changes(input: &TerraformInput) -> Result<Vec<ResourceChange>, String> {
     match input {
         TerraformInput::Directory(directory) => run_terraform_plan(directory),
-        TerraformInput::PlanFile(plan_file) => run_terraform_show(plan_file),
+        TerraformInput::JsonPlanFile(plan_file) => read_plan_json_file(plan_file),
+        TerraformInput::BinaryPlanFile(plan_file) => run_terraform_show(plan_file),
     }
+}
+
+fn read_plan_json_file(plan_file: &Path) -> Result<Vec<ResourceChange>, String> {
+    let contents = std::fs::read_to_string(plan_file).map_err(|error| {
+        format!(
+            "Failed to read Terraform plan file '{}': {error}",
+            plan_file.display()
+        )
+    })?;
+
+    Ok(parse_plan_output(&contents))
 }
 
 fn run_terraform_plan(directory: &Path) -> Result<Vec<ResourceChange>, String> {
@@ -422,24 +482,28 @@ fn run_terraform_show(plan_file: &Path) -> Result<Vec<ResourceChange>, String> {
 fn main() {
     let cli = Cli::parse();
 
-    let input = resolve_input(&cli.directory).unwrap_or_else(|error| {
+    let input = resolve_input(&cli).unwrap_or_else(|error| {
         eprintln!("{error}");
         std::process::exit(1);
     });
 
-    verify_terraform_available().unwrap_or_else(|error| {
-        eprintln!("{error}");
-        std::process::exit(1);
-    });
+    if input.requires_terraform() {
+        verify_terraform_available().unwrap_or_else(|error| {
+            eprintln!("{error}");
+            std::process::exit(1);
+        });
+    }
 
-    let resource_changes = run_terraform(&input).unwrap_or_else(|error| {
+    let resource_changes = load_changes(&input).unwrap_or_else(|error| {
         eprintln!("{error}");
         std::process::exit(1);
     });
     let resource_changes = filter_changes(resource_changes, &cli);
     let display_path = match &input {
         TerraformInput::Directory(directory) => directory.as_path(),
-        TerraformInput::PlanFile(plan_file) => plan_file.as_path(),
+        TerraformInput::JsonPlanFile(plan_file) | TerraformInput::BinaryPlanFile(plan_file) => {
+            plan_file.as_path()
+        }
     };
 
     print!(

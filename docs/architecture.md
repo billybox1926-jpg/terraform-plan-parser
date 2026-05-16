@@ -2,38 +2,38 @@
 
 ## Overview
 
-`terraform-plan-parser` is a single-binary Rust CLI tool that wraps `terraform plan -json`, parses the streaming JSON output, and prints a human-readable summary of resource changes.
+`terraform-plan-parser` is a single-binary Rust CLI tool that wraps `terraform plan -json` or reads pre-generated plan files, parses Terraform JSON output, and prints a human-readable summary of resource changes.
 
 ## System Architecture
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
 │                        User Shell                           │
-│  $ terraform_plan_parser [DIRECTORY]                        │
+│  $ terraform_plan_parser [DIRECTORY] [--plan-file PATH]                        │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    CLI Interface Layer                      │
 │  • Parse command-line arguments with clap derive macros      │
-│  • Accept directory/.tfplan, format, emoji, filter flags     │
-│  • Validate input exists and is a directory or .tfplan file │
+│  • Accept directory/.tfplan, --plan-file, format, emoji, filter flags     │
+│  • Validate input exists and resolve --plan-file before positional input │
 │  • Resolve absolute path (handles Windows relative paths)   │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                  Terraform Invocation Layer                 │
-│  • Verify `terraform` binary is available in PATH           │
-│  • Execute live plans or `terraform show -json` for .tfplan  │
+│  • Verify `terraform` is available only for live plans or `.tfplan` files           │
+│  • Execute live plans, read JSON plan files, or run `terraform show -json` for .tfplan  │
 │  • Stream live-plan stdout and capture stderr                │
-│  • Exit with code 1 if terraform fails                      │
+│  • Exit with code 1 if Terraform/file loading fails                      │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                   JSON Parsing Layer                        │
-│  • Stream-read stdout line-by-line                          │
+│  • Stream-read live-plan stdout line-by-line or parse plan-file contents                          │
 │  • Parse each line as JSON via `serde_json`                 │
 │  • Extract: `change.resource.resource_type`                 │
 │  │         `change.resource.resource_name`                  │
@@ -136,7 +136,7 @@ The project is intentionally kept as a single-file CLI for simplicity. As featur
 
 - **Structured output formats** — add `--format json|csv|table` flags.
 - **Filtering** — add filters such as `--include-type aws_instance` or `--exclude-action read`.
-- **Plan file support** — accept `.tfplan` files instead of requiring a live `terraform plan` invocation.
+- **Additional plan-source detection** — keep expanding file/source handling while preserving `--plan-file` precedence.
 - **Pre-flight checks** — validate Terraform version compatibility.
 - **CI/CD integration** — exit with different codes for create vs. delete actions.
 - **Configuration file** — support `.terraform-plan-parser.toml` for persistent filters.
