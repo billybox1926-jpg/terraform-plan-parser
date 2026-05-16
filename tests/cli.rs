@@ -241,3 +241,44 @@ fn verbose_flag_enables_debug_logging() {
 
     fs::remove_dir_all(root).expect("remove temp dir");
 }
+
+#[test]
+fn reads_defaults_and_filters_from_config_file() {
+    let root = temp_dir("config_defaults");
+    let plan_file = root.join("plan.ndjson");
+    fs::write(
+        &plan_file,
+        r#"{"@level":"info","change":{"resource":{"resource_type":"aws_instance","resource_name":"web"},"action":"create"}}
+{"@level":"info","change":{"resource":{"resource_type":"aws_s3_bucket","resource_name":"logs"},"action":"delete"}}
+"#,
+    )
+    .expect("write plan fixture");
+    fs::write(
+        root.join(".terraform-plan-parser.toml"),
+        r#"plan-file = "plan.ndjson"
+format = "csv"
+include-type = ["aws_*"]
+exclude-action = ["delete"]
+"#,
+    )
+    .expect("write config file");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_terraform_plan_parser"))
+        .arg(".")
+        .current_dir(&root)
+        .env("PATH", "")
+        .output()
+        .expect("run terraform_plan_parser");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "resource_type,resource_name,action\naws_instance,web,create\n"
+    );
+
+    fs::remove_dir_all(root).expect("remove temp dir");
+}

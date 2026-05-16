@@ -34,7 +34,7 @@
 - [x] Add filtering capabilities
   - `--filter-type` with glob support, for example `aws_*`.
   - `--filter-action`, for example `create` or `delete`.
-- [ ] Add configuration file support
+- [x] Add configuration file support
   - `.terraform-plan-parser.toml` for persistent filters and defaults.
-- [ ] Consolidate architecture docs
-  - Merge `ARCHITECTURE.md` and `docs/architecture.md` into one canonical doc.
+- [x] Consolidate architecture docs
+  - Merged `ARCHITECTURE.md` and `docs/architecture.md` into root `ARCHITECTURE.md` as the canonical doc.

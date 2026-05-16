@@ -10,6 +10,8 @@ use std::{
 use tracing::Level;
 use tracing_subscriber::fmt::MakeWriter;
 
+const CONFIG_FILE_NAME: &str = ".terraform-plan-parser.toml";
+
 #[derive(Clone, Copy)]
 struct LevelWriter;
 
@@ -59,11 +61,17 @@ struct Cli {
     ///
     /// Parses NDJSON from `terraform plan -json > plan.json` and full JSON from
     /// `terraform show -json` directly. Saved `.tfplan` files are converted with
-    /// `terraform show -json`. Takes precedence over DIRECTORY.
+    /// `terraform show -json`. Takes precedence over DIRECTORY and config defaults.
     #[arg(long, value_name = "PATH")]
     plan_file: Option<PathBuf>,
-    #[arg(long, value_enum, default_value = "text")]
-    format: Format,
+    /// Read defaults from a specific TOML config file.
+    ///
+    /// When omitted, the CLI looks for `.terraform-plan-parser.toml` in the
+    /// current directory and then next to the selected DIRECTORY/plan file.
+    #[arg(long, value_name = "PATH")]
+    config: Option<PathBuf>,
+    #[arg(long, value_enum)]
+    format: Option<Format>,
     #[arg(long)]
     no_emoji: bool,
     /// Print the Terraform command that would run, then exit without executing Terraform.
@@ -92,12 +100,40 @@ struct Cli {
     exclude_action: Vec<String>,
 }
 
-#[derive(clap::ValueEnum, Clone, Debug)]
+#[derive(clap::ValueEnum, Clone, Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
 enum Format {
     Text,
     Json,
     Csv,
     Table,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default, rename_all = "kebab-case")]
+struct ConfigFile {
+    plan_file: Option<PathBuf>,
+    format: Option<Format>,
+    no_emoji: Option<bool>,
+    dry_run: Option<bool>,
+    verbose: Option<bool>,
+    include_type: Vec<String>,
+    exclude_type: Vec<String>,
+    include_action: Vec<String>,
+    exclude_action: Vec<String>,
+}
+
+#[derive(Debug)]
+struct AppSettings {
+    plan_file: Option<PathBuf>,
+    format: Format,
+    no_emoji: bool,
+    dry_run: bool,
+    verbose: bool,
+    include_type: Vec<String>,
+    exclude_type: Vec<String>,
+    include_action: Vec<String>,
+    exclude_action: Vec<String>,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize)]
@@ -218,12 +254,22 @@ fn action_from_show_actions(actions: &[String]) -> Option<String> {
     }
 }
 
-fn filter_changes(resource_changes: Vec<ResourceChange>, cli: &Cli) -> Vec<ResourceChange> {
+fn filter_changes(
+    resource_changes: Vec<ResourceChange>,
+    settings: &AppSettings,
+) -> Vec<ResourceChange> {
     resource_changes
         .into_iter()
         .filter(|change| {
-            matches_filter(&change.resource_type, &cli.include_type, &cli.exclude_type)
-                && matches_filter(&change.action, &cli.include_action, &cli.exclude_action)
+            matches_filter(
+                &change.resource_type,
+                &settings.include_type,
+                &settings.exclude_type,
+            ) && matches_filter(
+                &change.action,
+                &settings.include_action,
+                &settings.exclude_action,
+            )
         })
         .collect()
 }
@@ -369,12 +415,121 @@ fn csv_escape(value: &str) -> String {
     }
 }
 
-fn resolve_input(cli: &Cli) -> Result<TerraformInput, String> {
-    if let Some(plan_file) = &cli.plan_file {
+fn load_config(cli: &Cli) -> Result<(ConfigFile, Option<PathBuf>), String> {
+    let Some(path) = resolve_config_path(cli)? else {
+        return Ok((ConfigFile::default(), None));
+    };
+
+    let contents = std::fs::read_to_string(&path)
+        .map_err(|error| format!("Failed to read config file '{}': {error}", path.display()))?;
+    let config = toml::from_str::<ConfigFile>(&contents)
+        .map_err(|error| format!("Failed to parse config file '{}': {error}", path.display()))?;
+
+    Ok((config, Some(path)))
+}
+
+fn resolve_config_path(cli: &Cli) -> Result<Option<PathBuf>, String> {
+    if let Some(path) = &cli.config {
+        if !path.exists() {
+            return Err(format!("Config file does not exist: {}", path.display()));
+        }
+        let abs_path = absolutize(path);
+        if !abs_path.is_file() {
+            return Err(format!("Config path is not a file: {}", path.display()));
+        }
+        return Ok(Some(abs_path));
+    }
+
+    for candidate in default_config_candidates(cli) {
+        if candidate.is_file() {
+            return Ok(Some(absolutize(&candidate)));
+        }
+    }
+
+    Ok(None)
+}
+
+fn default_config_candidates(cli: &Cli) -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+    if let Ok(current_dir) = std::env::current_dir() {
+        candidates.push(current_dir.join(CONFIG_FILE_NAME));
+    }
+
+    let input_path = cli
+        .plan_file
+        .as_deref()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from(&cli.directory));
+    let input_config_dir = if input_path.is_dir() {
+        Some(input_path)
+    } else if input_path.is_file() {
+        input_path.parent().map(Path::to_path_buf)
+    } else {
+        None
+    };
+
+    if let Some(config_dir) = input_config_dir {
+        candidates.push(config_dir.join(CONFIG_FILE_NAME));
+    }
+
+    dedup_paths(candidates)
+}
+
+fn dedup_paths(paths: Vec<PathBuf>) -> Vec<PathBuf> {
+    let mut unique = Vec::new();
+    for path in paths {
+        if !unique.iter().any(|existing: &PathBuf| existing == &path) {
+            unique.push(path);
+        }
+    }
+    unique
+}
+
+fn app_settings(cli: &Cli, config: ConfigFile, config_path: Option<&Path>) -> AppSettings {
+    let plan_file = cli.plan_file.clone().or_else(|| {
+        config
+            .plan_file
+            .map(|path| resolve_config_relative_path(path, config_path))
+    });
+
+    AppSettings {
+        plan_file,
+        format: cli.format.clone().or(config.format).unwrap_or(Format::Text),
+        no_emoji: cli.no_emoji || config.no_emoji.unwrap_or(false),
+        dry_run: cli.dry_run || config.dry_run.unwrap_or(false),
+        verbose: cli.verbose || config.verbose.unwrap_or(false),
+        include_type: cli_or_config_values(&cli.include_type, config.include_type),
+        exclude_type: cli_or_config_values(&cli.exclude_type, config.exclude_type),
+        include_action: cli_or_config_values(&cli.include_action, config.include_action),
+        exclude_action: cli_or_config_values(&cli.exclude_action, config.exclude_action),
+    }
+}
+
+fn resolve_config_relative_path(path: PathBuf, config_path: Option<&Path>) -> PathBuf {
+    if path.is_absolute() {
+        return path;
+    }
+
+    config_path
+        .and_then(Path::parent)
+        .map(|parent| parent.join(&path))
+        .unwrap_or(path)
+}
+
+fn cli_or_config_values(cli_values: &[String], config_values: Vec<String>) -> Vec<String> {
+    if cli_values.is_empty() {
+        config_values
+    } else {
+        cli_values.to_vec()
+    }
+}
+
+fn resolve_input(settings: &AppSettings, directory: &str) -> Result<TerraformInput, String> {
+    if let Some(plan_file) = &settings.plan_file {
         return resolve_plan_file_input(plan_file);
     }
 
-    resolve_positional_input(&cli.directory)
+    resolve_positional_input(directory)
 }
 
 fn resolve_plan_file_input(path: &Path) -> Result<TerraformInput, String> {
@@ -590,15 +745,22 @@ fn init_tracing(verbose: bool) {
 
 fn main() {
     let cli = Cli::parse();
-    init_tracing(cli.verbose);
+    let (config, config_path) = load_config(&cli).unwrap_or_else(|error| {
+        eprintln!("{error}");
+        std::process::exit(1);
+    });
+    let settings = app_settings(&cli, config, config_path.as_deref());
+
+    init_tracing(settings.verbose);
+    tracing::debug!(config_path = ?config_path, "Configuration loaded");
     tracing::debug!("Verbose logging enabled");
 
-    let input = resolve_input(&cli).unwrap_or_else(|error| {
+    let input = resolve_input(&settings, &cli.directory).unwrap_or_else(|error| {
         tracing::error!("{error}");
         std::process::exit(1);
     });
 
-    if cli.dry_run {
+    if settings.dry_run {
         tracing::info!("{}", render_dry_run(&input).trim_end());
         return;
     }
@@ -614,7 +776,7 @@ fn main() {
         tracing::error!("{error}");
         std::process::exit(1);
     });
-    let resource_changes = filter_changes(resource_changes, &cli);
+    let resource_changes = filter_changes(resource_changes, &settings);
     let display_path = match &input {
         TerraformInput::Directory(directory) => directory.as_path(),
         TerraformInput::JsonPlanFile(plan_file) | TerraformInput::BinaryPlanFile(plan_file) => {
@@ -624,15 +786,21 @@ fn main() {
 
     tracing::info!(
         "{}",
-        render_changes(&resource_changes, display_path, &cli.format, cli.no_emoji).trim_end()
+        render_changes(
+            &resource_changes,
+            display_path,
+            &settings.format,
+            settings.no_emoji
+        )
+        .trim_end()
     );
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        csv_escape, filter_changes, parse_plan_output, render_csv, render_dry_run, render_table,
-        Cli, Format, ResourceChange, TerraformInput,
+        app_settings, csv_escape, filter_changes, parse_plan_output, render_csv, render_dry_run,
+        render_table, Cli, ConfigFile, Format, ResourceChange, TerraformInput,
     };
     use clap::Parser;
     use std::path::Path;
@@ -735,7 +903,7 @@ not-json
         ];
 
         assert_eq!(
-            filter_changes(changes, &cli),
+            filter_changes(changes, &app_settings(&cli, ConfigFile::default(), None)),
             vec![ResourceChange {
                 resource_type: "aws_instance".to_string(),
                 resource_name: "web".to_string(),
@@ -772,7 +940,7 @@ not-json
         ];
 
         assert_eq!(
-            filter_changes(changes, &cli),
+            filter_changes(changes, &app_settings(&cli, ConfigFile::default(), None)),
             vec![ResourceChange {
                 resource_type: "aws_instance".to_string(),
                 resource_name: "web".to_string(),
@@ -809,7 +977,7 @@ not-json
         ];
 
         assert_eq!(
-            filter_changes(changes, &cli),
+            filter_changes(changes, &app_settings(&cli, ConfigFile::default(), None)),
             vec![ResourceChange {
                 resource_type: "aws_instance".to_string(),
                 resource_name: "web".to_string(),
@@ -894,6 +1062,6 @@ not-json
     #[test]
     fn accepts_table_format_from_cli() {
         let cli = Cli::parse_from(["terraform_plan_parser", "--format", "table"]);
-        assert!(matches!(cli.format, Format::Table));
+        assert!(matches!(cli.format, Some(Format::Table)));
     }
 }

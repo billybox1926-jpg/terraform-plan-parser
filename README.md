@@ -10,7 +10,8 @@ A lightweight Rust CLI tool that parses Terraform plan JSON output and displays 
 - **Dry-run mode** — preview the Terraform command or file read that would happen with `--dry-run` without executing Terraform
 - **Configurable logging** — keep default output focused on the final summary, or add `--verbose`/`-v` for debug diagnostics
 - **Flexible filtering** — narrow results with comma-separated exact or glob patterns such as `--include-type aws_*`, `--exclude-type *_bucket`, or `--include-action cre*`
-- **Zero config** — just run it
+- **Optional project config** — persist output and filter defaults in `.terraform-plan-parser.toml`
+- **Zero config by default** — just run it
 - **Cross-platform** — works on Windows, macOS, and Linux
 
 ## Prerequisites
@@ -104,6 +105,23 @@ Available filter flags:
 - `--include-action GLOB[,GLOB]...`
 - `--exclude-action GLOB[,GLOB]...`
 
+## Configuration file
+
+Add `.terraform-plan-parser.toml` to reuse defaults across local runs and CI jobs. The CLI discovers the file in the current directory or next to the selected input, and `--config PATH` can point at a specific file.
+
+```toml
+plan-file = "plan.ndjson"
+format = "csv"
+no-emoji = true
+verbose = false
+include-type = ["aws_*"]
+exclude-type = ["*_bucket"]
+include-action = ["create", "update"]
+exclude-action = ["delete"]
+```
+
+CLI options override config defaults for `plan-file`, `format`, and filter lists. Boolean options are enabled when either the config value or CLI flag is true. Relative `plan-file` values are resolved from the config file directory.
+
 ## Architecture
 
-See [Architecture Notes](ARCHITECTURE.md) for system architecture, data flow, design decisions, and future extension points.
+See the canonical [Architecture Notes](ARCHITECTURE.md) for system architecture, configuration flow, data flow, design decisions, and future extension points.

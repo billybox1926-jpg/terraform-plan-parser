@@ -2,184 +2,253 @@
 
 ## Overview
 
-`terraform-plan-parser` is a single-binary Rust CLI tool that wraps `terraform plan -json` or reads pre-generated plan files, parses Terraform JSON output, and prints a human-readable summary of resource changes.
+`terraform-plan-parser` is a single-binary Rust CLI tool that wraps `terraform plan -json` or reads pre-generated Terraform plan files, parses Terraform JSON output, optionally filters the resulting changes, and renders the summary as text, JSON, CSV, or a plain table.
+
+This root-level `ARCHITECTURE.md` is the canonical architecture document for the project.
 
 ## System Architecture
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                        User Shell                           │
-│  $ terraform_plan_parser [DIRECTORY] [--plan-file PATH] [--dry-run] [-v]         │
+│  $ terraform_plan_parser [DIRECTORY] [--plan-file PATH]     │
+│    [--config PATH] [--dry-run] [--format text|json|csv|table]│
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    CLI Interface Layer                      │
-│  • Parse command-line arguments (paths, output, filters)    │
-│  • Validate input path exists and resolve its plan source   │
-│  • Configure tracing verbosity from `--verbose`/`-v`        │
-│  • Short-circuit in `--dry-run` mode after rendering intent │
-│  • Resolve absolute path (handles Windows relative paths)   │
+│  • Parse command-line arguments with clap derive macros      │
+│  • Accept directory/.tfplan, --plan-file, format, emoji,    │
+│    dry-run, verbosity, config, and filter flags             │
+│  • CLI path and filter values override config defaults      │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  Configuration Layer                        │
+│  • Load .terraform-plan-parser.toml from the current dir or │
+│    next to the selected input, unless --config is provided  │
+│  • Resolve relative config plan-file values from the config │
+│    file directory                                           │
+│  • Build effective runtime settings before tracing starts   │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Input Resolution Layer                   │
+│  • Validate input paths and resolve absolute paths          │
+│  • Give --plan-file/config plan-file precedence over the    │
+│    positional DIRECTORY                                     │
+│  • Classify input as live directory, JSON plan file, or     │
+│    saved binary .tfplan file                                │
+│  • Short-circuit in --dry-run mode after rendering intent   │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    Logging Layer                            │
 │  • tracing subscriber defaults to info-level final output   │
-│  • `--verbose`/`-v` enables debug diagnostics on stderr     │
+│  • --verbose/-v or config verbose enables debug diagnostics │
+│    on stderr                                                │
 │  • warnings/errors use tracing warn!/error! macros          │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                  Terraform Invocation Layer                 │
-│  • Verify `terraform` is available only for live plans or `.tfplan` files │
-│  • Execute: `terraform plan -json -input=false -no-color`   │
-│  • Execute: `terraform show -json` for saved `.tfplan` files│
-│  • Capture stdout (JSON stream) and stderr                  │
+│  • Verify terraform is available only for live plans or     │
+│    saved .tfplan files                                      │
+│  • Execute terraform plan -json -input=false -no-color for  │
+│    live directories                                         │
+│  • Execute terraform show -json for saved .tfplan files     │
+│  • Read JSON/NDJSON plan files without invoking Terraform   │
 │  • Exit with code 1 if Terraform/file loading fails         │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                   JSON Parsing Layer                        │
-│  • Stream-read live stdout or parse plan-file contents      │
-│  • Parse Terraform JSON via `serde_json`                    │
-│  • Extract resource type, resource name, and action         │
+│  • Stream-read live-plan stdout line-by-line                │
+│  • Parse JSON plan files from disk                          │
+│  • Parse Terraform NDJSON lines and terraform show JSON via │
+│    serde_json                                               │
+│  • Extract resource type, resource name, and normalized     │
+│    action values                                            │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                   Filtering Layer                           │
-│  • Apply include/exclude filters to type and action         │
-│  • Support exact values and glob wildcards (`*`, `?`)       │
+│  • Apply include/exclude filters to resource type and action│
+│  • Support exact values and glob wildcards (*, ?)           │
 │  • Treat exclude matches as higher priority than includes   │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                   Rendering Layer                           │
-│  • Map actions to emoji symbols:                            │
-│    create → ➕ | update → 🔄 | delete → ➖ | read → 📖      │
-│  • Print formatted summary table                            │
-│  • Handle empty state: "✅ No resource changes detected"    │
+│  • Render text, JSON, CSV, or table output                  │
+│  • Map text actions to emoji symbols unless disabled        │
+│  • Keep machine-readable JSON/CSV payloads on stdout        │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 ## Data Flow
 
+```text
+                 ┌────────────────────────────┐
+                 │ CLI args + optional config │
+                 └──────────────┬─────────────┘
+                                ▼
+                         Effective settings
+                                │
+                                ▼
+┌───────────────────┐    ┌──────────────┐    ┌───────────────────┐
+│ Terraform project │───▶│ plan -json   │───▶│ NDJSON line parser│
+└───────────────────┘    └──────────────┘    └─────────┬─────────┘
+                                                        │
+┌───────────────────┐    ┌──────────────┐              │
+│ saved .tfplan     │───▶│ show -json   │──────────────┤
+└───────────────────┘    └──────────────┘              │
+                                                        ▼
+┌───────────────────┐                            Vec<ResourceChange>
+│ JSON/NDJSON file  │───────────────────────────────┬───────────────┘
+└───────────────────┘                               ▼
+                                               Filters
+                                                   │
+                                                   ▼
+                                               Renderer
+                                                   │
+                                                   ▼
+                                                stdout
 ```
-Terraform Project Directory
-        │
-        ▼
-┌───────────────┐     ┌───────────────┐     ┌───────────────┐
-│  terraform    │────▶│  JSON Stream  │────▶│  Rust Parser  │
-│  plan -json   │     │  (line-del.)  │     │  (serde_json) │
-└───────────────┘     └───────────────┘     └───────┬───────┘
-                                                    │
-                                                    ▼
-                                            ┌───────────────┐
-                                            │  Vec<Change>  │
-                                            │  (in-memory)  │
-                                            └───────┬───────┘
-                                                    │
-                                                    ▼
-                                            ┌───────────────┐
-                                            │ Glob Filters  │
-                                            └───────┬───────┘
-                                                    │
-                                                    ▼
-                                            ┌───────────────┐
-                                            │  Stdout Render│
-                                            │  (emoji + text)│
-                                            └───────────────┘
+
+## Configuration
+
+The CLI supports `.terraform-plan-parser.toml` for persistent defaults. Discovery order is:
+
+1. The explicit `--config PATH`, if provided.
+2. `.terraform-plan-parser.toml` in the current working directory.
+3. `.terraform-plan-parser.toml` next to the selected positional directory/file or explicit `--plan-file`.
+
+Supported keys use kebab-case TOML names that mirror CLI flags:
+
+```toml
+plan-file = "plan.ndjson"
+format = "csv"
+no-emoji = true
+dry-run = false
+verbose = false
+include-type = ["aws_*"]
+exclude-type = ["*_bucket"]
+include-action = ["create", "update"]
+exclude-action = ["delete"]
 ```
+
+CLI values take precedence over config defaults for `plan-file`, `format`, and each filter list. Boolean flags are enabled when either the CLI flag or the config value is true. Relative `plan-file` paths from config are resolved relative to the config file directory.
 
 ## Module Structure
 
-```
+```text
 src/
-├── main.rs              # Single-file application (no submodules)
-│   ├── Cli              # clap-derived CLI help and argument parsing
-│   ├── parse_*          # Terraform JSON deserialization helpers
-│   ├── filter_*         # include/exclude exact and glob matching
-│   ├── render_*         # text, JSON, CSV, table, and dry-run output
-│   ├── init_tracing     # tracing subscriber setup and stdout/stderr routing
-│   └── main()           # entry point: args → logging → input → optional dry-run → parse → filter → render
+└── main.rs                         # Single-file application
+    ├── Cli / ConfigFile / AppSettings
+    │                                # argument parsing, TOML defaults, and runtime settings
+    ├── ResourceChange              # in-memory parsed change model
+    ├── PlanLine / ShowPlan structs # typed serde models for Terraform JSON formats
+    ├── load_config()               # config discovery, parsing, and config-relative paths
+    ├── resolve_input()             # path validation and input classification
+    ├── run_terraform_*()           # Terraform process management
+    ├── parse_*()                   # JSON deserialization helpers
+    ├── filter_changes()            # include/exclude exact and glob matching
+    ├── render_*()                  # text, JSON, CSV, table, and dry-run output
+    ├── init_tracing()              # stdout/stderr routing and verbosity
+    └── main()                      # entry point orchestration
 ```
 
-> **Note:** The project is intentionally kept as a single-file CLI for simplicity. As features grow, consider splitting into:
-> - `cli.rs` — argument parsing
-> - `terraform.rs` — Terraform process management
-> - `parser.rs` — JSON deserialization models
-> - `renderer.rs` — output formatting
+The project is intentionally kept as a single-file CLI for simplicity. As features grow, consider splitting it into:
+
+- `cli.rs` — argument parsing and config merging
+- `terraform.rs` — Terraform process management
+- `parser.rs` — JSON deserialization models and plan parsing tests
+- `renderer.rs` — output formatting
 
 ## Key Design Decisions
 
 | Decision | Rationale |
-|----------|-----------|
-| **Single binary** | Easy distribution; no runtime dependencies beyond Terraform |
-| **Stream parsing** | `terraform plan -json` emits NDJSON (newline-delimited JSON); we parse line-by-line to avoid loading the entire output into memory |
-| **Absolute path resolution** | Prevents Windows-specific issues where `.current_dir()` behaves unexpectedly with relative paths |
-| **Exit codes** | `0` = success (or no changes), `1` = error (invalid dir, terraform missing, plan failed) |
-| **No config file** | Zero-configuration tool; all behavior is deterministic |
-| **Glob filters** | Resource type and action filters support exact values plus wildcard patterns while preserving comma-separated CLI behavior |
-| **Dry-run short-circuit** | `--dry-run` resolves and validates the input source, prints the command or file read that would happen, and exits before Terraform availability checks or plan loading |
-| **Tracing-based logging** | A `tracing_subscriber` setup keeps info-level rendered summaries on stdout, routes warnings/errors/debug diagnostics to stderr, and raises the max level from info to debug when `--verbose` is used |
+| --- | --- |
+| Single binary | Easy distribution; no runtime dependencies beyond Terraform for live plans and `.tfplan` conversion. |
+| Zero-config by default | The tool still works without a config file; `.terraform-plan-parser.toml` only provides reusable defaults. |
+| CLI precedence | Explicit CLI arguments should be safe for one-off overrides in scripts and CI. |
+| Config-relative plan files | A committed project config can point at a local generated plan fixture or CI artifact path predictably. |
+| Stream parsing | `terraform plan -json` emits newline-delimited JSON, so live output is parsed line-by-line instead of buffering the whole stream first. |
+| Absolute path resolution | Prevents Windows-specific issues where `.current_dir()` behaves unexpectedly with relative paths. |
+| Exit codes | `0` means success or no changes; `1` means invalid input, missing Terraform, failed plan/show, unreadable config, or parse/load errors. |
+| Glob filters | Resource type and action filters support exact values plus wildcard patterns while preserving comma-separated CLI behavior. |
+| Dry-run short-circuit | `--dry-run` resolves and validates the input source, prints the command or file read that would happen, and exits before Terraform availability checks or plan loading. |
+| Tracing-based logging | The tracing subscriber keeps info-level rendered summaries on stdout, routes warnings/errors/debug diagnostics to stderr, and raises the max level from info to debug when verbose mode is used. |
 
 ## Dependencies
 
 | Crate | Purpose |
-|-------|---------|
-| `serde` | Derive macros for JSON deserialization |
-| `serde_json` | Runtime JSON parsing |
-| `glob` | Wildcard pattern matching for include/exclude filters |
-| `clap` | Command-line parsing and help text generation |
-| `tracing` | Structured application logging macros |
-| `tracing-subscriber` | Runtime log filtering and stdout/stderr formatting |
+| --- | --- |
+| `clap` | Command-line parsing and help text generation. |
+| `glob` | Wildcard pattern matching for include/exclude filters. |
+| `serde` | Derive macros for TOML and JSON deserialization plus JSON serialization. |
+| `serde_json` | Terraform JSON parsing and JSON output rendering. |
+| `toml` | `.terraform-plan-parser.toml` parsing. |
+| `tracing` | Structured application logging macros. |
+| `tracing-subscriber` | Runtime log filtering and stdout/stderr formatting. |
 
-> `requirements.txt` exists for documentation/reference only. Actual dependency management is via `Cargo.toml`.
+`src/requirements.txt` exists for documentation/reference only. Actual dependency management is via `Cargo.toml`.
 
 ## Error Handling Strategy
 
-```
+```text
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   User Input    │────▶│   Validation    │────▶│   Early Exit    │
-│  (args, path)   │     │  (exists, dir)  │     │   (code 1)      │
+│ Config Discovery│────▶│ Read/Parse TOML │────▶│ Early Exit      │
+│ (optional)      │     │ (if present)    │     │ (code 1 on err) │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
 
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   Dry-run Flag  │────▶│  Render Intent  │────▶│  Success Exit   │
-│   (optional)    │     │  (no Terraform) │     │   (code 0)      │
+│ User Input      │────▶│ Validation      │────▶│ Early Exit      │
+│ (args/config)   │     │ (exists/type)   │     │ (code 1 on err) │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
 
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│  Terraform Call │────▶│  Check Status   │────▶│   Early Exit    │
-│                 │     │  (success?)     │     │   (code 1)      │
+│ Dry-run Flag    │────▶│ Render Intent   │────▶│ Success Exit    │
+│ (optional)      │     │ (no Terraform)  │     │ (code 0)        │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
 
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│  JSON Parse     │────▶│ Warn on Invalid │────▶│  Continue Loop  │
-│  (per line)     │     │  NDJSON Lines   │     │  (graceful)     │
+│ Terraform Call  │────▶│ Check Status    │────▶│ Early Exit      │
+│ (if required)   │     │ (success?)      │     │ (code 1 on err) │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│ JSON Parse      │────▶│ Warn on Invalid │────▶│ Continue Loop   │
+│ (per NDJSON)    │     │ NDJSON Lines    │     │ (graceful)      │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
 ```
 
 ## Future Extension Points
 
-1. **Structured output formats** — Add `--format json|csv|table` flags
-2. **Filtering enhancements** — expand beyond current glob support if resource names, modules, or tags become filter targets
-3. **Additional plan-source detection** — Keep expanding file/source handling while preserving `--plan-file` precedence
-4. **Pre-flight checks** — Validate Terraform version compatibility
-5. **CI/CD integration** — Exit with different codes for `create` vs `delete` actions
-6. **Configuration file** — `.terraform-plan-parser.toml` for persistent filters
+- Split the current single-file implementation into focused modules once feature growth justifies it.
+- Add resource name, address, module path, or provider filters.
+- Add explicit config-generation or config-validation commands.
+- Validate Terraform version compatibility before live plan/show execution.
+- Add CI/CD-specific exit modes for create/update/delete policy decisions.
 
 ## Technology Stack
 
 | Layer | Technology |
-|-------|------------|
+| --- | --- |
 | Language | Rust (Edition 2021) |
-| JSON Parsing | serde + serde_json |
-| Process Spawning | std::process::Command |
-| CLI Args | clap derive parser |
-| Logging | tracing + tracing-subscriber |
+| CLI Args | `clap` derive parser |
+| Config Parsing | `toml` + `serde` |
+| JSON Parsing | `serde` + `serde_json` |
+| Filtering | `glob` |
+| Process Spawning | `std::process::Command` |
+| Logging | `tracing` + `tracing-subscriber` |
 | Target Platforms | Windows, macOS, Linux |
