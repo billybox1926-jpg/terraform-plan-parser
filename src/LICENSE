@@ -1,0 +1,11 @@
+
+---
+
+## `requirements.txt` (for reference)
+
+```text
+# Rust dependencies for terraform_plan_parser
+# These are managed via Cargo.toml; this file is for documentation only.
+
+serde = "1.0"
+serde_json = "1.0"
