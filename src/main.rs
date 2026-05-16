@@ -115,7 +115,27 @@ fn main() {
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let resource_changes = parse_plan_output(&stdout);
+    let mut resource_changes = Vec::new();
+
+    for line in stdout.lines() {
+        if let Ok(json) = serde_json::from_str::<Value>(line) {
+            if let Some(change) = json.get("change") {
+                if let Some(resource) = change.get("resource") {
+                    let resource_type = resource["resource_type"]
+                        .as_str()
+                        .unwrap_or("unknown")
+                        .to_string();
+                    let resource_name = resource["resource_name"]
+                        .as_str()
+                        .unwrap_or("unknown")
+                        .to_string();
+                    let action = change["action"].as_str().unwrap_or("noop").to_string();
+
+                    resource_changes.push((resource_type, resource_name, action));
+                }
+            }
+        }
+    }
 
     if resource_changes.is_empty() {
         println!(
