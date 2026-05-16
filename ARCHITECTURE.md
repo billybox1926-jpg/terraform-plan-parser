@@ -9,7 +9,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                        User Shell                           │
-│  $ terraform_plan_parser [DIRECTORY] [--plan-file PATH] [--dry-run]             │
+│  $ terraform_plan_parser [DIRECTORY] [--plan-file PATH] [--dry-run] [-v]         │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
@@ -17,8 +17,17 @@
 │                    CLI Interface Layer                      │
 │  • Parse command-line arguments (paths, output, filters)    │
 │  • Validate input path exists and resolve its plan source   │
+│  • Configure tracing verbosity from `--verbose`/`-v`        │
 │  • Short-circuit in `--dry-run` mode after rendering intent │
 │  • Resolve absolute path (handles Windows relative paths)   │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Logging Layer                            │
+│  • tracing subscriber defaults to info-level final output   │
+│  • `--verbose`/`-v` enables debug diagnostics on stderr     │
+│  • warnings/errors use tracing warn!/error! macros          │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
@@ -95,7 +104,8 @@ src/
 │   ├── parse_*          # Terraform JSON deserialization helpers
 │   ├── filter_*         # include/exclude exact and glob matching
 │   ├── render_*         # text, JSON, CSV, table, and dry-run output
-│   └── main()           # entry point: args → input → optional dry-run → parse → filter → render
+│   ├── init_tracing     # tracing subscriber setup and stdout/stderr routing
+│   └── main()           # entry point: args → logging → input → optional dry-run → parse → filter → render
 ```
 
 > **Note:** The project is intentionally kept as a single-file CLI for simplicity. As features grow, consider splitting into:
@@ -115,6 +125,7 @@ src/
 | **No config file** | Zero-configuration tool; all behavior is deterministic |
 | **Glob filters** | Resource type and action filters support exact values plus wildcard patterns while preserving comma-separated CLI behavior |
 | **Dry-run short-circuit** | `--dry-run` resolves and validates the input source, prints the command or file read that would happen, and exits before Terraform availability checks or plan loading |
+| **Tracing-based logging** | A `tracing_subscriber` setup keeps info-level rendered summaries on stdout, routes warnings/errors/debug diagnostics to stderr, and raises the max level from info to debug when `--verbose` is used |
 
 ## Dependencies
 
@@ -124,6 +135,8 @@ src/
 | `serde_json` | Runtime JSON parsing |
 | `glob` | Wildcard pattern matching for include/exclude filters |
 | `clap` | Command-line parsing and help text generation |
+| `tracing` | Structured application logging macros |
+| `tracing-subscriber` | Runtime log filtering and stdout/stderr formatting |
 
 > `requirements.txt` exists for documentation/reference only. Actual dependency management is via `Cargo.toml`.
 
@@ -146,8 +159,8 @@ src/
 └─────────────────┘     └─────────────────┘     └─────────────────┘
 
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│  JSON Parse     │────▶│  Skip Invalid   │────▶│  Continue Loop  │
-│  (per line)     │     │  Lines silently │     │  (graceful)     │
+│  JSON Parse     │────▶│ Warn on Invalid │────▶│  Continue Loop  │
+│  (per line)     │     │  NDJSON Lines   │     │  (graceful)     │
 └─────────────────┘     └─────────────────┘     └─────────────────┘
 ```
 
@@ -168,4 +181,5 @@ src/
 | JSON Parsing | serde + serde_json |
 | Process Spawning | std::process::Command |
 | CLI Args | clap derive parser |
+| Logging | tracing + tracing-subscriber |
 | Target Platforms | Windows, macOS, Linux |

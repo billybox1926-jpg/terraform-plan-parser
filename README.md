@@ -8,6 +8,7 @@ A lightweight Rust CLI tool that parses Terraform plan JSON output and displays 
 - **Directory-aware** — point it at any Terraform project directory to run `terraform plan -json`
 - **Plan-file aware** — parse pre-generated NDJSON/full JSON plan files with `--plan-file`, or inspect saved `.tfplan` files through `terraform show -json`
 - **Dry-run mode** — preview the Terraform command or file read that would happen with `--dry-run` without executing Terraform
+- **Configurable logging** — keep default output focused on the final summary, or add `--verbose`/`-v` for debug diagnostics
 - **Flexible filtering** — narrow results with comma-separated exact or glob patterns such as `--include-type aws_*`, `--exclude-type *_bucket`, or `--include-action cre*`
 - **Zero config** — just run it
 - **Cross-platform** — works on Windows, macOS, and Linux
@@ -67,6 +68,16 @@ terraform_plan_parser --plan-file plan.json --dry-run
 ```
 
 Dry-run mode still validates the selected input path. For live directories it prints the `terraform plan -json -input=false -no-color` command that would run, for saved `.tfplan` files it prints the `terraform show -json` command that would run, and for JSON plan files it reports that the file would be read without any Terraform command.
+
+Enable verbose logging when you need to troubleshoot path resolution, Terraform execution, or plan-file loading:
+
+```bash
+terraform_plan_parser . --verbose
+terraform_plan_parser --plan-file plan.ndjson -v
+terraform_plan_parser . --dry-run --verbose
+```
+
+By default, the CLI keeps stdout focused on the final rendered summary. Verbose debug diagnostics are written to stderr so JSON/CSV stdout output stays script-friendly.
 
 ## Filtering
 

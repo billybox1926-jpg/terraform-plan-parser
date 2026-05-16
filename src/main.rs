@@ -7,6 +7,47 @@ use std::{
     process::{Command, Stdio},
     thread,
 };
+use tracing::Level;
+use tracing_subscriber::fmt::MakeWriter;
+
+#[derive(Clone, Copy)]
+struct LevelWriter;
+
+enum OutputWriter {
+    Stdout(std::io::Stdout),
+    Stderr(std::io::Stderr),
+}
+
+impl<'writer> MakeWriter<'writer> for LevelWriter {
+    type Writer = OutputWriter;
+
+    fn make_writer(&'writer self) -> Self::Writer {
+        OutputWriter::Stderr(std::io::stderr())
+    }
+
+    fn make_writer_for(&'writer self, meta: &tracing::Metadata<'_>) -> Self::Writer {
+        match *meta.level() {
+            Level::INFO => OutputWriter::Stdout(std::io::stdout()),
+            _ => OutputWriter::Stderr(std::io::stderr()),
+        }
+    }
+}
+
+impl std::io::Write for OutputWriter {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        match self {
+            Self::Stdout(writer) => writer.write(buf),
+            Self::Stderr(writer) => writer.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        match self {
+            Self::Stdout(writer) => writer.flush(),
+            Self::Stderr(writer) => writer.flush(),
+        }
+    }
+}
 
 #[derive(Parser)]
 #[command(name = "terraform_plan_parser")]
@@ -28,6 +69,9 @@ struct Cli {
     /// Print the Terraform command that would run, then exit without executing Terraform.
     #[arg(long)]
     dry_run: bool,
+    /// Enable verbose diagnostic logging.
+    #[arg(short, long)]
+    verbose: bool,
     /// Include only resource types matching these comma-separated glob patterns.
     ///
     /// Exact values still work, and wildcards such as `aws_*` or `*instance`
@@ -120,7 +164,13 @@ fn unknown_value() -> String {
 }
 
 fn parse_plan_line(line: &str) -> Option<ResourceChange> {
-    let line = serde_json::from_str::<PlanLine>(line).ok()?;
+    let line = match serde_json::from_str::<PlanLine>(line) {
+        Ok(line) => line,
+        Err(error) => {
+            tracing::warn!(%error, line, "Skipping invalid Terraform JSON line");
+            return None;
+        }
+    };
     let change = line.change?;
     let resource = change.resource?;
 
@@ -132,13 +182,13 @@ fn parse_plan_line(line: &str) -> Option<ResourceChange> {
 }
 
 fn parse_plan_output(stdout: &str) -> Vec<ResourceChange> {
-    let line_changes: Vec<ResourceChange> = stdout.lines().filter_map(parse_plan_line).collect();
-
-    if line_changes.is_empty() {
-        parse_show_plan_output(stdout).unwrap_or_default()
-    } else {
-        line_changes
+    if stdout.trim_start().starts_with('{') {
+        if let Ok(show_changes) = parse_show_plan_output(stdout) {
+            return show_changes;
+        }
     }
+
+    stdout.lines().filter_map(parse_plan_line).collect()
 }
 
 fn parse_show_plan_output(stdout: &str) -> Result<Vec<ResourceChange>, serde_json::Error> {
@@ -382,6 +432,7 @@ fn is_tfplan_file(path: &Path) -> bool {
 }
 
 fn verify_terraform_available() -> Result<(), String> {
+    tracing::debug!("Verifying terraform is available in PATH");
     Command::new("terraform")
         .arg("version")
         .output()
@@ -419,6 +470,7 @@ fn load_changes(input: &TerraformInput) -> Result<Vec<ResourceChange>, String> {
 }
 
 fn read_plan_json_file(plan_file: &Path) -> Result<Vec<ResourceChange>, String> {
+    tracing::debug!(path = %plan_file.display(), "Reading Terraform plan JSON file");
     let contents = std::fs::read_to_string(plan_file).map_err(|error| {
         format!(
             "Failed to read Terraform plan file '{}': {error}",
@@ -430,6 +482,7 @@ fn read_plan_json_file(plan_file: &Path) -> Result<Vec<ResourceChange>, String> 
 }
 
 fn run_terraform_plan(directory: &Path) -> Result<Vec<ResourceChange>, String> {
+    tracing::debug!(directory = %directory.display(), "Running terraform plan");
     let mut child = Command::new("terraform")
         .arg("plan")
         .arg("-json")
@@ -491,6 +544,7 @@ fn run_terraform_plan(directory: &Path) -> Result<Vec<ResourceChange>, String> {
 }
 
 fn run_terraform_show(plan_file: &Path) -> Result<Vec<ResourceChange>, String> {
+    tracing::debug!(path = %plan_file.display(), "Running terraform show for saved plan file");
     let current_dir = plan_file.parent().unwrap_or_else(|| Path::new("."));
     let output = Command::new("terraform")
         .arg("show")
@@ -523,28 +577,41 @@ fn run_terraform_show(plan_file: &Path) -> Result<Vec<ResourceChange>, String> {
     })
 }
 
+fn init_tracing(verbose: bool) {
+    let max_level = if verbose { Level::DEBUG } else { Level::INFO };
+    tracing_subscriber::fmt()
+        .with_max_level(max_level)
+        .with_writer(LevelWriter)
+        .without_time()
+        .with_level(false)
+        .with_target(false)
+        .init();
+}
+
 fn main() {
     let cli = Cli::parse();
+    init_tracing(cli.verbose);
+    tracing::debug!("Verbose logging enabled");
 
     let input = resolve_input(&cli).unwrap_or_else(|error| {
-        eprintln!("{error}");
+        tracing::error!("{error}");
         std::process::exit(1);
     });
 
     if cli.dry_run {
-        print!("{}", render_dry_run(&input));
+        tracing::info!("{}", render_dry_run(&input).trim_end());
         return;
     }
 
     if input.requires_terraform() {
         verify_terraform_available().unwrap_or_else(|error| {
-            eprintln!("{error}");
+            tracing::error!("{error}");
             std::process::exit(1);
         });
     }
 
     let resource_changes = load_changes(&input).unwrap_or_else(|error| {
-        eprintln!("{error}");
+        tracing::error!("{error}");
         std::process::exit(1);
     });
     let resource_changes = filter_changes(resource_changes, &cli);
@@ -555,9 +622,9 @@ fn main() {
         }
     };
 
-    print!(
+    tracing::info!(
         "{}",
-        render_changes(&resource_changes, display_path, &cli.format, cli.no_emoji)
+        render_changes(&resource_changes, display_path, &cli.format, cli.no_emoji).trim_end()
     );
 }
 
