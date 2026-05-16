@@ -6,7 +6,7 @@ A lightweight Rust CLI tool that parses Terraform plan JSON output and displays 
 
 - **Colorful summary** — see at a glance what's being created (➕), updated (🔄), deleted (➖), or read (📖)
 - **Directory-aware** — point it at any Terraform project directory to run `terraform plan -json`
-- **Plan-file aware** — parse pre-generated NDJSON/full JSON plan files with `--plan-file`, or inspect saved `.tfplan` files through `terraform show -json`
+- **Plan-input aware** — parse piped Terraform plan JSON from stdin, pre-generated NDJSON/full JSON plan files with `--plan-file`, or saved `.tfplan` files through `terraform show -json`
 - **Dry-run mode** — preview the Terraform command or file read that would happen with `--dry-run` without executing Terraform
 - **Configurable logging** — keep default output focused on the final summary, or add `--verbose`/`-v` for debug diagnostics
 - **Flexible filtering** — narrow results with comma-separated exact or glob patterns such as `--include-type aws_*`, `--exclude-type *_bucket`, or `--include-action cre*`
@@ -43,6 +43,14 @@ Run a live plan for another Terraform project directory:
 ```bash
 terraform_plan_parser some/dir
 ```
+
+Pipe Terraform JSON output directly into the parser:
+
+```bash
+terraform plan -json | terraform_plan_parser
+```
+
+Piped stdin takes precedence over `--plan-file` and live Terraform execution. If no stdin data is present, the CLI falls back to the selected plan file or directory.
 
 Parse a pre-generated Terraform plan JSON file without running `terraform plan`:
 

@@ -2,7 +2,7 @@ use clap::Parser;
 use glob::Pattern;
 use serde::{Deserialize, Serialize};
 use std::{
-    io::{BufRead, BufReader, Read},
+    io::{BufRead, BufReader, IsTerminal, Read},
     path::{Path, PathBuf},
     process::{Command, Stdio},
     thread,
@@ -184,6 +184,7 @@ struct ShowChange {
 
 #[derive(Debug)]
 enum TerraformInput {
+    StdinJson(String),
     Directory(PathBuf),
     JsonPlanFile(PathBuf),
     BinaryPlanFile(PathBuf),
@@ -218,7 +219,7 @@ fn parse_plan_line(line: &str) -> Option<ResourceChange> {
 }
 
 fn parse_plan_output(stdout: &str) -> Vec<ResourceChange> {
-    if stdout.trim_start().starts_with('{') {
+    if stdout.trim_start().starts_with('{') && stdout.contains("\"resource_changes\"") {
         if let Ok(show_changes) = parse_show_plan_output(stdout) {
             return show_changes;
         }
@@ -525,11 +526,35 @@ fn cli_or_config_values(cli_values: &[String], config_values: Vec<String>) -> Ve
 }
 
 fn resolve_input(settings: &AppSettings, directory: &str) -> Result<TerraformInput, String> {
+    if let Some(stdin_contents) = read_piped_stdin()? {
+        return Ok(TerraformInput::StdinJson(stdin_contents));
+    }
+
     if let Some(plan_file) = &settings.plan_file {
         return resolve_plan_file_input(plan_file);
     }
 
     resolve_positional_input(directory)
+}
+
+fn read_piped_stdin() -> Result<Option<String>, String> {
+    let stdin = std::io::stdin();
+    if stdin.is_terminal() {
+        return Ok(None);
+    }
+
+    let mut contents = String::new();
+    stdin
+        .lock()
+        .read_to_string(&mut contents)
+        .map_err(|error| format!("Failed to read Terraform plan JSON from stdin: {error}"))?;
+
+    if contents.trim().is_empty() {
+        Ok(None)
+    } else {
+        tracing::debug!("Reading Terraform plan JSON from stdin");
+        Ok(Some(contents))
+    }
 }
 
 fn resolve_plan_file_input(path: &Path) -> Result<TerraformInput, String> {
@@ -597,6 +622,10 @@ fn verify_terraform_available() -> Result<(), String> {
 
 fn render_dry_run(input: &TerraformInput) -> String {
     match input {
+        TerraformInput::StdinJson(_) => {
+            "Dry run: would read JSON Terraform plan data from stdin. No Terraform command would be executed.\n"
+                .to_string()
+        }
         TerraformInput::Directory(directory) => format!(
             "Dry run: would execute `terraform plan -json -input=false -no-color` in '{}'.\n",
             directory.display()
@@ -618,6 +647,7 @@ fn render_dry_run(input: &TerraformInput) -> String {
 
 fn load_changes(input: &TerraformInput) -> Result<Vec<ResourceChange>, String> {
     match input {
+        TerraformInput::StdinJson(contents) => Ok(parse_plan_output(contents)),
         TerraformInput::Directory(directory) => run_terraform_plan(directory),
         TerraformInput::JsonPlanFile(plan_file) => read_plan_json_file(plan_file),
         TerraformInput::BinaryPlanFile(plan_file) => run_terraform_show(plan_file),
@@ -777,7 +807,9 @@ fn main() {
         std::process::exit(1);
     });
     let resource_changes = filter_changes(resource_changes, &settings);
+    let stdin_display_path = Path::new("<stdin>");
     let display_path = match &input {
+        TerraformInput::StdinJson(_) => stdin_display_path,
         TerraformInput::Directory(directory) => directory.as_path(),
         TerraformInput::JsonPlanFile(plan_file) | TerraformInput::BinaryPlanFile(plan_file) => {
             plan_file.as_path()
@@ -852,6 +884,21 @@ not-json
                 resource_type: "aws_instance".to_string(),
                 resource_name: "web".to_string(),
                 action: "replace".to_string(),
+            }]
+        );
+    }
+
+    #[test]
+    fn parses_single_ndjson_change_line_as_stream_output() {
+        let stdout = r#"{"@level":"info","change":{"resource":{"resource_type":"google_compute_instance","resource_name":"piped"},"action":"delete"}}
+"#;
+
+        assert_eq!(
+            parse_plan_output(stdout),
+            vec![ResourceChange {
+                resource_type: "google_compute_instance".to_string(),
+                resource_name: "piped".to_string(),
+                action: "delete".to_string(),
             }]
         );
     }
@@ -983,6 +1030,65 @@ not-json
                 resource_name: "web".to_string(),
                 action: "create".to_string(),
             }]
+        );
+    }
+
+    #[test]
+    fn filters_action_include_and_exclude_lists() {
+        let cli = Cli::parse_from([
+            "terraform_plan_parser",
+            "--include-action",
+            "create,update,delete",
+            "--exclude-action",
+            "delete",
+        ]);
+        let changes = vec![
+            ResourceChange {
+                resource_type: "aws_instance".to_string(),
+                resource_name: "web".to_string(),
+                action: "create".to_string(),
+            },
+            ResourceChange {
+                resource_type: "aws_s3_bucket".to_string(),
+                resource_name: "logs".to_string(),
+                action: "update".to_string(),
+            },
+            ResourceChange {
+                resource_type: "aws_security_group".to_string(),
+                resource_name: "old".to_string(),
+                action: "delete".to_string(),
+            },
+            ResourceChange {
+                resource_type: "aws_iam_role".to_string(),
+                resource_name: "reader".to_string(),
+                action: "read".to_string(),
+            },
+        ];
+
+        assert_eq!(
+            filter_changes(changes, &app_settings(&cli, ConfigFile::default(), None)),
+            vec![
+                ResourceChange {
+                    resource_type: "aws_instance".to_string(),
+                    resource_name: "web".to_string(),
+                    action: "create".to_string(),
+                },
+                ResourceChange {
+                    resource_type: "aws_s3_bucket".to_string(),
+                    resource_name: "logs".to_string(),
+                    action: "update".to_string(),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn renders_dry_run_for_stdin_without_terraform_command() {
+        let output = render_dry_run(&TerraformInput::StdinJson("{}".to_string()));
+
+        assert_eq!(
+            output,
+            "Dry run: would read JSON Terraform plan data from stdin. No Terraform command would be executed.\n"
         );
     }
 
