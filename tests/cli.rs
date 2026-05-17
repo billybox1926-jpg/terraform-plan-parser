@@ -382,6 +382,8 @@ const MIXED_ACTIONS_PLAN: &str = r#"{"@level":"info","change":{"resource":{"reso
 #[test]
 fn filters_only_update_actions() {
     let root = temp_dir("filter_update_actions");
+fn excludes_actions_even_when_included() {
+    let root = temp_dir("filter_exclude_actions");
     let plan_file = root.join("plan.ndjson");
 
     fs::write(&plan_file, MIXED_ACTIONS_PLAN).expect("write plan fixture");
@@ -395,6 +397,9 @@ fn filters_only_update_actions() {
         .arg("csv")
         .arg("--include-action")
         .arg("update")
+        .arg("create,update,delete")
+        .arg("--exclude-action")
+        .arg("delete")
         .env("PATH", "")
         .output()
         .expect("run terraform_plan_parser");
@@ -408,6 +413,11 @@ fn filters_only_update_actions() {
         String::from_utf8_lossy(&output.stdout),
         "resource_type,resource_name,action\naws_s3_bucket,logs,update\n"
     );
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("create"));
+    assert!(stdout.contains("update"));
+    assert!(!stdout.contains("delete"));
 
     fs::remove_dir_all(root).expect("remove temp dir");
 }
