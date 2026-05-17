@@ -114,6 +114,9 @@ struct Cli {
     /// Include only actions matching these comma-separated glob patterns.
     #[arg(long, value_delimiter = ',', value_name = "GLOB[,GLOB]...")]
     include_action: Vec<String>,
+    /// Shorthand for `--include-action delete` (safety reviews).
+    #[arg(short = 'd', long)]
+    only_delete: bool,
     /// Exclude actions matching these comma-separated glob patterns.
     #[arg(long, value_delimiter = ',', value_name = "GLOB[,GLOB]...")]
     exclude_action: Vec<String>,
@@ -155,6 +158,7 @@ struct ConfigFile {
     include_type: Vec<String>,
     exclude_type: Vec<String>,
     include_action: Vec<String>,
+    only_delete: Option<bool>,
     exclude_action: Vec<String>,
     fail_on: Vec<String>,
     github_summary: Option<bool>,
@@ -698,7 +702,15 @@ fn dedup_paths(paths: Vec<PathBuf>) -> Vec<PathBuf> {
     unique
 }
 
+fn resolve_include_action(cli: &Cli, config: &ConfigFile) -> Vec<String> {
+    if cli.only_delete || config.only_delete.unwrap_or(false) {
+        return vec!["delete".to_string()];
+    }
+    cli_or_config_values(&cli.include_action, config.include_action.clone())
+}
+
 fn app_settings(cli: &Cli, config: ConfigFile, config_path: Option<&Path>) -> AppSettings {
+    let include_action = resolve_include_action(cli, &config);
     let plan_file = cli.plan_file.clone().or_else(|| {
         config
             .plan_file
@@ -714,7 +726,7 @@ fn app_settings(cli: &Cli, config: ConfigFile, config_path: Option<&Path>) -> Ap
         quiet: cli.quiet || config.quiet.unwrap_or(false),
         include_type: cli_or_config_values(&cli.include_type, config.include_type),
         exclude_type: cli_or_config_values(&cli.exclude_type, config.exclude_type),
-        include_action: cli_or_config_values(&cli.include_action, config.include_action),
+        include_action,
         exclude_action: cli_or_config_values(&cli.exclude_action, config.exclude_action),
         fail_on: cli_or_config_values(&cli.fail_on, config.fail_on),
         github_summary: cli.github_summary || config.github_summary.unwrap_or(false),
@@ -1506,6 +1518,13 @@ not-json
     fn accepts_dry_run_from_cli() {
         let cli = Cli::parse_from(["terraform_plan_parser", "--dry-run"]);
         assert!(cli.dry_run);
+    }
+
+    #[test]
+    fn only_delete_shorthand_sets_include_action() {
+        let cli = Cli::parse_from(["terraform_plan_parser", "-d"]);
+        let settings = app_settings(&cli, ConfigFile::default(), None);
+        assert_eq!(settings.include_action, vec!["delete".to_string()]);
     }
 
     #[test]

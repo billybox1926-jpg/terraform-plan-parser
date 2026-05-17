@@ -99,6 +99,9 @@ terraform_plan_parser . --include-type 'aws_*'
 # Include instance-like resources while hiding bucket resources
 terraform_plan_parser . --include-type '*instance' --exclude-type '*_bucket'
 
+# Shorthand for delete-only safety reviews
+terraform_plan_parser . --plan-file plan.ndjson -d
+
 # Action filters also accept glob patterns
 terraform_plan_parser . --include-action 'cre*' --exclude-action 'no*'
 
@@ -111,6 +114,7 @@ Available filter flags:
 - `--include-type GLOB[,GLOB]...`
 - `--exclude-type GLOB[,GLOB]...`
 - `--include-action GLOB[,GLOB]...`
+- `-d`, `--only-delete` — shorthand for `--include-action delete`
 - `--exclude-action GLOB[,GLOB]...`
 
 ## Configuration file
