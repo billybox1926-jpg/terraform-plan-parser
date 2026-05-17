@@ -52,7 +52,19 @@ impl std::io::Write for OutputWriter {
 }
 
 #[derive(Parser)]
-#[command(name = "terraform_plan_parser")]
+#[command(
+    name = "terraform_plan_parser",
+    after_help = r#"EXAMPLES:
+  # Parse a saved JSON plan file
+  terraform_plan_parser . --plan-file plan.ndjson --format csv
+
+  # Read plan JSON from stdin
+  cat plan.ndjson | terraform_plan_parser . --format table
+
+  # Filter to create actions only
+  terraform_plan_parser . --plan-file plan.ndjson --include-action create
+"#
+)]
 struct Cli {
     /// Terraform project directory or saved .tfplan file to inspect.
     #[arg(default_value = ".")]
@@ -80,6 +92,9 @@ struct Cli {
     /// Enable verbose diagnostic logging.
     #[arg(short, long)]
     verbose: bool,
+    /// Suppress the action summary line at the end of text/table output.
+    #[arg(short, long)]
+    quiet: bool,
     /// Include only resource types matching these comma-separated glob patterns.
     ///
     /// Exact values still work, and wildcards such as `aws_*` or `*instance`
@@ -117,6 +132,7 @@ struct ConfigFile {
     no_emoji: Option<bool>,
     dry_run: Option<bool>,
     verbose: Option<bool>,
+    quiet: Option<bool>,
     include_type: Vec<String>,
     exclude_type: Vec<String>,
     include_action: Vec<String>,
@@ -130,6 +146,7 @@ struct AppSettings {
     no_emoji: bool,
     dry_run: bool,
     verbose: bool,
+    quiet: bool,
     include_type: Vec<String>,
     exclude_type: Vec<String>,
     include_action: Vec<String>,
@@ -323,7 +340,13 @@ fn render_text(resource_changes: &[ResourceChange], abs_path: &Path, no_emoji: b
     ));
     for change in resource_changes {
         let symbol = if no_emoji {
-            ""
+            match change.action.as_str() {
+                "create" => "+ ",
+                "update" => "~ ",
+                "delete" => "- ",
+                "read" => "? ",
+                _ => "* ",
+            }
         } else {
             match change.action.as_str() {
                 "create" => "➕ ",
@@ -559,13 +582,19 @@ fn read_piped_stdin() -> Result<Option<String>, String> {
 
 fn resolve_plan_file_input(path: &Path) -> Result<TerraformInput, String> {
     if !path.exists() {
-        return Err(format!("Path does not exist: {}", path.display()));
+        return Err(format!(
+            "Error: plan file not found at \"{}\"\n\
+             Hint: check the path and ensure the file exists, or run \
+             `terraform plan -json > plan.json` in your project directory.",
+            path.display()
+        ));
     }
 
     let abs_path = absolutize(path);
     if !abs_path.is_file() {
         return Err(format!(
-            "--plan-file path is not a file: {}",
+            "Error: --plan-file path is not a file: \"{}\"\n\
+             Hint: pass a JSON/NDJSON plan file or a saved .tfplan file.",
             path.display()
         ));
     }
@@ -832,7 +861,7 @@ fn main() {
 mod tests {
     use super::{
         app_settings, csv_escape, filter_changes, parse_plan_output, render_csv, render_dry_run,
-        render_table, Cli, ConfigFile, Format, ResourceChange, TerraformInput,
+        render_table, render_text, Cli, ConfigFile, Format, ResourceChange, TerraformInput,
     };
     use clap::Parser;
     use std::path::Path;
@@ -1169,5 +1198,14 @@ not-json
     fn accepts_table_format_from_cli() {
         let cli = Cli::parse_from(["terraform_plan_parser", "--format", "table"]);
         assert!(matches!(cli.format, Some(Format::Table)));
+    }
+
+    #[test]
+    fn resolve_plan_file_input_reports_missing_file() {
+        let error = crate::resolve_plan_file_input(Path::new("./missing-plan.json"))
+            .expect_err("missing plan file should fail");
+
+        assert!(error.contains("plan file not found"));
+        assert!(error.contains("./missing-plan.json"));
     }
 }
