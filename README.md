@@ -115,6 +115,8 @@ Available filter flags:
 - `--exclude-type GLOB[,GLOB]...`
 - `--include-action GLOB[,GLOB]...`
 - `-d`, `--only-delete` — shorthand for `--include-action delete`
+- `-c`, `--only-create` — shorthand for `--include-action create`
+- `-u`, `--only-update` — shorthand for `--include-action update`
 - `--exclude-action GLOB[,GLOB]...`
 
 ## Configuration file

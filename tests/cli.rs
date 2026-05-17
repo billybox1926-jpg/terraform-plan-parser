@@ -446,6 +446,41 @@ fn filters_only_update_actions() {
     fs::remove_dir_all(root).expect("remove temp dir");
 }
 
+
+#[test]
+fn only_create_shorthand_filters_create_actions() {
+    let root = temp_dir("only_create_shorthand");
+    let plan_file = root.join("plan.ndjson");
+    fs::write(&plan_file, MIXED_ACTIONS_PLAN).expect("write plan fixture");
+    let output = Command::new(env!("CARGO_BIN_EXE_terraform_plan_parser"))
+        .arg(".").current_dir(&root).arg("--plan-file").arg("plan.ndjson")
+        .arg("--format").arg("csv").arg("-c")
+        .env("PATH", "").output().expect("run terraform_plan_parser");
+    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "resource_type,resource_name,action\naws_instance,web,create\n"
+    );
+    fs::remove_dir_all(root).expect("remove temp dir");
+}
+
+#[test]
+fn only_update_shorthand_filters_update_actions() {
+    let root = temp_dir("only_update_shorthand");
+    let plan_file = root.join("plan.ndjson");
+    fs::write(&plan_file, MIXED_ACTIONS_PLAN).expect("write plan fixture");
+    let output = Command::new(env!("CARGO_BIN_EXE_terraform_plan_parser"))
+        .arg(".").current_dir(&root).arg("--plan-file").arg("plan.ndjson")
+        .arg("--format").arg("csv").arg("-u")
+        .env("PATH", "").output().expect("run terraform_plan_parser");
+    assert!(output.status.success(), "stderr: {}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "resource_type,resource_name,action\naws_s3_bucket,logs,update\n"
+    );
+    fs::remove_dir_all(root).expect("remove temp dir");
+}
+
 #[test]
 fn only_delete_shorthand_filters_delete_actions() {
     let root = temp_dir("only_delete_shorthand");
