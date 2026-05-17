@@ -129,6 +129,9 @@ struct Cli {
     /// Shorthand to include only update actions.
     #[arg(short = 'u', long)]
     only_update: bool,
+    /// Shorthand for `--include-action replace`.
+    #[arg(short = 'r', long)]
+    only_replace: bool,
     /// Exclude actions matching these comma-separated glob patterns.
     #[arg(long, value_delimiter = ',', value_name = "GLOB[,GLOB]...")]
     exclude_action: Vec<String>,
@@ -760,13 +763,15 @@ fn dedup_paths(paths: Vec<PathBuf>) -> Vec<PathBuf> {
 fn resolve_include_action(cli: &Cli, config: &ConfigFile) -> Vec<String> {
     if cli.only_delete || config.only_delete.unwrap_or(false) {
         return vec!["delete".to_string()];
-
+    }
     if cli.only_create {
         return vec!["create".to_string()];
     }
     if cli.only_update {
         return vec!["update".to_string()];
     }
+    if cli.only_replace {
+        return vec!["replace".to_string()];
     }
     cli_or_config_values(&cli.include_action, config.include_action.clone())
 }
@@ -1626,6 +1631,27 @@ not-json
         let cli = Cli::parse_from(["terraform_plan_parser", "-d"]);
         let settings = app_settings(&cli, ConfigFile::default(), None);
         assert_eq!(settings.include_action, vec!["delete".to_string()]);
+    }
+
+    #[test]
+    fn only_create_shorthand_sets_include_action() {
+        let cli = Cli::parse_from(["terraform_plan_parser", "-c"]);
+        let settings = app_settings(&cli, ConfigFile::default(), None);
+        assert_eq!(settings.include_action, vec!["create".to_string()]);
+    }
+
+    #[test]
+    fn only_update_shorthand_sets_include_action() {
+        let cli = Cli::parse_from(["terraform_plan_parser", "-u"]);
+        let settings = app_settings(&cli, ConfigFile::default(), None);
+        assert_eq!(settings.include_action, vec!["update".to_string()]);
+    }
+
+    #[test]
+    fn only_replace_shorthand_sets_include_action() {
+        let cli = Cli::parse_from(["terraform_plan_parser", "-r"]);
+        let settings = app_settings(&cli, ConfigFile::default(), None);
+        assert_eq!(settings.include_action, vec!["replace".to_string()]);
     }
 
     #[test]
