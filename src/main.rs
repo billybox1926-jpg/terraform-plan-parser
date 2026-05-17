@@ -55,6 +55,7 @@ impl std::io::Write for OutputWriter {
 #[derive(Parser)]
 #[command(
     name = "terraform_plan_parser",
+    version = env!("CARGO_PKG_VERSION"),
     after_help = r#"EXAMPLES:
   # Parse a saved JSON plan file
   terraform_plan_parser . --plan-file plan.ndjson --format csv
