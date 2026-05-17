@@ -1,4 +1,5 @@
 use clap::Parser;
+use clap_complete::{generate, Shell};
 use glob::Pattern;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -113,6 +114,15 @@ struct Cli {
     /// Exclude actions matching these comma-separated glob patterns.
     #[arg(long, value_delimiter = ',', value_name = "GLOB[,GLOB]...")]
     exclude_action: Vec<String>,
+    /// Exit with a non-zero status when the plan contains any of these actions.
+    ///
+    /// Evaluated after filters are applied. Useful in CI to block destructive plans:
+    /// `terraform_plan_parser . --fail-on delete`
+    #[arg(long, value_delimiter = ',', value_name = "ACTION[,ACTION]...")]
+    fail_on: Vec<String>,
+    /// Generate shell completion script and exit.
+    #[arg(long, value_enum, value_name = "SHELL")]
+    completions: Option<Shell>,
 }
 
 #[derive(clap::ValueEnum, Clone, Debug, Deserialize)]
@@ -137,6 +147,7 @@ struct ConfigFile {
     exclude_type: Vec<String>,
     include_action: Vec<String>,
     exclude_action: Vec<String>,
+    fail_on: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -151,6 +162,7 @@ struct AppSettings {
     exclude_type: Vec<String>,
     include_action: Vec<String>,
     exclude_action: Vec<String>,
+    fail_on: Vec<String>,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize)]
@@ -595,9 +607,17 @@ fn app_settings(cli: &Cli, config: ConfigFile, config_path: Option<&Path>) -> Ap
         exclude_type: cli_or_config_values(&cli.exclude_type, config.exclude_type),
         include_action: cli_or_config_values(&cli.include_action, config.include_action),
         exclude_action: cli_or_config_values(&cli.exclude_action, config.exclude_action),
+        fail_on: cli_or_config_values(&cli.fail_on, config.fail_on),
     }
 }
 
+fn has_fail_on_actions(resource_changes: &[ResourceChange], fail_on: &[String]) -> bool {
+    fail_on.iter().any(|pattern| {
+        resource_changes
+            .iter()
+            .any(|change| matches_pattern(&change.action, pattern))
+    })
+}
 fn resolve_config_relative_path(path: PathBuf, config_path: Option<&Path>) -> PathBuf {
     if path.is_absolute() {
         return path;
@@ -652,8 +672,7 @@ fn read_piped_stdin() -> Result<Option<String>, String> {
 fn resolve_plan_file_input(path: &Path) -> Result<TerraformInput, String> {
     if !path.exists() {
         return Err(format!(
-            "Error: plan file not found at \"{}\"\n\
-             Hint: check the path and ensure the file exists, or run \
+            "Error: plan file not found at \"{}\"\n\             Hint: check the path and ensure the file exists, or run \
              `terraform plan -json > plan.json` in your project directory.",
             path.display()
         ));
@@ -662,8 +681,7 @@ fn resolve_plan_file_input(path: &Path) -> Result<TerraformInput, String> {
     let abs_path = absolutize(path);
     if !abs_path.is_file() {
         return Err(format!(
-            "Error: --plan-file path is not a file: \"{}\"\n\
-             Hint: pass a JSON/NDJSON plan file or a saved .tfplan file.",
+            "Error: --plan-file path is not a file: \"{}\"\n\             Hint: pass a JSON/NDJSON plan file or a saved .tfplan file.",
             path.display()
         ));
     }
@@ -871,8 +889,19 @@ fn init_tracing(verbose: bool) {
         .init();
 }
 
+fn generate_completions(shell: Shell) {
+    let mut cmd = Cli::command();
+    let name = cmd.get_name().to_string();
+    generate(shell, &mut cmd, name, &mut std::io::stdout());
+}
+
 fn main() {
     let cli = Cli::parse();
+
+    if let Some(shell) = cli.completions {
+        generate_completions(shell);
+        return;
+    }
     let (config, config_path) = load_config(&cli).unwrap_or_else(|error| {
         eprintln!("{error}");
         std::process::exit(1);
@@ -925,14 +954,19 @@ fn main() {
         )
         .trim_end()
     );
+
+    if has_fail_on_actions(&resource_changes, &settings.fail_on) {
+        tracing::error!("Plan contains forbidden actions matching --fail-on criteria");
+        std::process::exit(1);
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        app_settings, count_actions, csv_escape, filter_changes, parse_plan_output, render_csv,
-        render_dry_run, render_summary_line, render_table, render_text, ChangeCounts, Cli,
-        ConfigFile, Format, ResourceChange, TerraformInput,
+        app_settings, count_actions, csv_escape, filter_changes, has_fail_on_actions,
+        parse_plan_output, render_csv, render_dry_run, render_summary_line, render_table,
+        render_text, ChangeCounts, Cli, ConfigFile, Format, ResourceChange, TerraformInput,
     };
     use clap::Parser;
     use std::path::Path;
@@ -1275,8 +1309,8 @@ not-json
         let counts = count_actions(&changes);
         let output = render_text(&changes, Path::new("/tmp/project"), true, true, &counts);
 
-        assert!(!output.contains("to create"));
         assert!(!output.contains("Summary:"));
+        assert!(!output.contains("to create"));
     }
 
     #[test]
@@ -1351,5 +1385,27 @@ not-json
 
         assert!(error.contains("plan file not found"));
         assert!(error.contains("./missing-plan.json"));
+    }
+
+    #[test]
+    fn fail_on_matches_delete_actions() {
+        let changes = vec![
+            ResourceChange {
+                resource_type: "aws_s3_bucket".to_string(),
+                resource_name: "logs".to_string(),
+                action: "delete".to_string(),
+            },
+            ResourceChange {
+                resource_type: "aws_instance".to_string(),
+                resource_name: "web".to_string(),
+                action: "create".to_string(),
+            },
+        ];
+        assert!(has_fail_on_actions(&changes, &["delete".to_string()]));
+        assert!(!has_fail_on_actions(&changes, &["update".to_string()]));
+        assert!(has_fail_on_actions(
+            &changes,
+            &["delete".to_string(), "create".to_string()]
+        ));
     }
 }
