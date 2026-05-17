@@ -572,6 +572,38 @@ fn csv_no_header_omits_header_row() {
     fs::remove_dir_all(root).expect("remove temp dir");
 }
 
+const REPLACE_ACTIONS_PLAN: &str = r#"{"@level":"info","change":{"resource":{"resource_type":"aws_lambda_function","resource_name":"api"},"action":"replace"}}
+{"@level":"info","change":{"resource":{"resource_type":"aws_instance","resource_name":"web"},"action":"create"}}
+"#;
+
+#[test]
+fn only_replace_shorthand_filters_replace_actions() {
+    let root = temp_dir("only_replace_shorthand");
+    let plan_file = root.join("plan.ndjson");
+    fs::write(&plan_file, REPLACE_ACTIONS_PLAN).expect("write plan fixture");
+    let output = Command::new(env!("CARGO_BIN_EXE_terraform_plan_parser"))
+        .arg(".")
+        .current_dir(&root)
+        .arg("--plan-file")
+        .arg("plan.ndjson")
+        .arg("--format")
+        .arg("csv")
+        .arg("-r")
+        .env("PATH", "")
+        .output()
+        .expect("run terraform_plan_parser");
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "resource_type,resource_name,action\naws_lambda_function,api,replace\n"
+    );
+    fs::remove_dir_all(root).expect("remove temp dir");
+}
+
 #[test]
 fn prints_version_flag() {
     let output = Command::new(env!("CARGO_BIN_EXE_terraform_plan_parser"))
