@@ -128,17 +128,10 @@ struct Cli {
 
     /// Shorthand to include only update actions.
     #[arg(short = 'u', long)]
-    /// Shorthand to include only replace actions.
-    #[arg(short = 'r', long)]
-    only_replace: bool,
-    /// Shorthand to include only replace actions.
-    #[arg(short = 'r', long)]
-    only_replace: bool,
     only_update: bool,
-
     /// Shorthand to include only replace actions.
     #[arg(short = 'r', long)]
-
+    only_replace: bool,
     /// Exclude actions matching these comma-separated glob patterns.
     #[arg(long, value_delimiter = ',', value_name = "GLOB[,GLOB]...")]
     exclude_action: Vec<String>,
