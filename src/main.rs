@@ -74,6 +74,8 @@ struct Cli {
     format: Option<Format>,
     #[arg(long)]
     no_emoji: bool,
+    #[arg(long)]
+fail_on_delete: bool,
     /// Print the Terraform command that would run, then exit without executing Terraform.
     #[arg(long)]
     dry_run: bool,
