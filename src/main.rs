@@ -80,6 +80,9 @@ struct Cli {
     /// Enable verbose diagnostic logging.
     #[arg(short, long)]
     verbose: bool,
+    /// Suppress the action summary line at the end of text/table output.
+    #[arg(short, long)]
+    quiet: bool,
     /// Include only resource types matching these comma-separated glob patterns.
     ///
     /// Exact values still work, and wildcards such as `aws_*` or `*instance`
@@ -117,6 +120,7 @@ struct ConfigFile {
     no_emoji: Option<bool>,
     dry_run: Option<bool>,
     verbose: Option<bool>,
+    quiet: Option<bool>,
     include_type: Vec<String>,
     exclude_type: Vec<String>,
     include_action: Vec<String>,
@@ -130,6 +134,7 @@ struct AppSettings {
     no_emoji: bool,
     dry_run: bool,
     verbose: bool,
+    quiet: bool,
     include_type: Vec<String>,
     exclude_type: Vec<String>,
     include_action: Vec<String>,
@@ -289,21 +294,60 @@ fn matches_pattern(value: &str, pattern: &str) -> bool {
     Pattern::new(pattern).map_or_else(|_| pattern == value, |glob| glob.matches(value))
 }
 
+#[derive(Debug, Default, PartialEq, Eq)]
+struct ChangeCounts {
+    create: usize,
+    update: usize,
+    delete: usize,
+}
+
+fn count_actions(resource_changes: &[ResourceChange]) -> ChangeCounts {
+    let mut counts = ChangeCounts::default();
+    for change in resource_changes {
+        match change.action.as_str() {
+            "create" => counts.create += 1,
+            "update" => counts.update += 1,
+            "delete" => counts.delete += 1,
+            "replace" => {
+                counts.create += 1;
+                counts.delete += 1;
+            }
+            _ => {}
+        }
+    }
+    counts
+}
+
+fn render_summary_line(counts: &ChangeCounts) -> String {
+    format!(
+        "{} to create, {} to update, {} to delete\n",
+        counts.create, counts.update, counts.delete
+    )
+}
+
 fn render_changes(
     resource_changes: &[ResourceChange],
     abs_path: &Path,
     format: &Format,
     no_emoji: bool,
+    quiet: bool,
 ) -> String {
+    let counts = count_actions(resource_changes);
     match format {
-        Format::Text => render_text(resource_changes, abs_path, no_emoji),
+        Format::Text => render_text(resource_changes, abs_path, no_emoji, quiet, &counts),
         Format::Json => render_json(resource_changes),
         Format::Csv => render_csv(resource_changes),
-        Format::Table => render_table(resource_changes, abs_path),
+        Format::Table => render_table(resource_changes, abs_path, quiet, &counts),
     }
 }
 
-fn render_text(resource_changes: &[ResourceChange], abs_path: &Path, no_emoji: bool) -> String {
+fn render_text(
+    resource_changes: &[ResourceChange],
+    abs_path: &Path,
+    no_emoji: bool,
+    quiet: bool,
+    counts: &ChangeCounts,
+) -> String {
     let mut output = String::new();
     if resource_changes.is_empty() {
         let prefix = if no_emoji { "" } else { "✅ " };
@@ -312,6 +356,9 @@ fn render_text(resource_changes: &[ResourceChange], abs_path: &Path, no_emoji: b
             prefix,
             abs_path.display()
         ));
+        if !quiet {
+            output.push_str(&render_summary_line(counts));
+        }
         return output;
     }
 
@@ -338,6 +385,9 @@ fn render_text(resource_changes: &[ResourceChange], abs_path: &Path, no_emoji: b
             symbol, change.resource_type, change.resource_name, change.action
         ));
     }
+    if !quiet {
+        output.push_str(&render_summary_line(counts));
+    }
     output
 }
 
@@ -361,12 +411,21 @@ fn render_csv(resource_changes: &[ResourceChange]) -> String {
     output
 }
 
-fn render_table(resource_changes: &[ResourceChange], abs_path: &Path) -> String {
+fn render_table(
+    resource_changes: &[ResourceChange],
+    abs_path: &Path,
+    quiet: bool,
+    counts: &ChangeCounts,
+) -> String {
     if resource_changes.is_empty() {
-        return format!(
+        let mut output = format!(
             "No resource changes detected in '{}'.\n",
             abs_path.display()
         );
+        if !quiet {
+            output.push_str(&render_summary_line(counts));
+        }
+        return output;
     }
 
     let type_width = resource_changes
@@ -403,6 +462,10 @@ fn render_table(resource_changes: &[ResourceChange], abs_path: &Path) -> String 
             "{:<type_width$}  {:<name_width$}  {:<action_width$}\n",
             change.resource_type, change.resource_name, change.action
         ));
+    }
+
+    if !quiet {
+        output.push_str(&render_summary_line(counts));
     }
 
     output
@@ -499,6 +562,7 @@ fn app_settings(cli: &Cli, config: ConfigFile, config_path: Option<&Path>) -> Ap
         no_emoji: cli.no_emoji || config.no_emoji.unwrap_or(false),
         dry_run: cli.dry_run || config.dry_run.unwrap_or(false),
         verbose: cli.verbose || config.verbose.unwrap_or(false),
+        quiet: cli.quiet || config.quiet.unwrap_or(false),
         include_type: cli_or_config_values(&cli.include_type, config.include_type),
         exclude_type: cli_or_config_values(&cli.exclude_type, config.exclude_type),
         include_action: cli_or_config_values(&cli.include_action, config.include_action),
@@ -822,7 +886,8 @@ fn main() {
             &resource_changes,
             display_path,
             &settings.format,
-            settings.no_emoji
+            settings.no_emoji,
+            settings.quiet
         )
         .trim_end()
     );
@@ -831,8 +896,9 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::{
-        app_settings, csv_escape, filter_changes, parse_plan_output, render_csv, render_dry_run,
-        render_table, Cli, ConfigFile, Format, ResourceChange, TerraformInput,
+        app_settings, count_actions, csv_escape, filter_changes, parse_plan_output, render_csv,
+        render_dry_run, render_summary_line, render_table, render_text, ChangeCounts, Cli,
+        ConfigFile, Format, ResourceChange, TerraformInput,
     };
     use clap::Parser;
     use std::path::Path;
@@ -1108,19 +1174,87 @@ not-json
     }
 
     #[test]
-    fn renders_table_output() {
-        let output = render_table(
-            &[ResourceChange {
+    fn counts_actions_from_filtered_changes() {
+        let changes = vec![
+            ResourceChange {
                 resource_type: "aws_instance".to_string(),
                 resource_name: "web".to_string(),
                 action: "create".to_string(),
-            }],
-            Path::new("/tmp/project"),
+            },
+            ResourceChange {
+                resource_type: "aws_s3_bucket".to_string(),
+                resource_name: "logs".to_string(),
+                action: "update".to_string(),
+            },
+            ResourceChange {
+                resource_type: "aws_rds_cluster".to_string(),
+                resource_name: "db".to_string(),
+                action: "replace".to_string(),
+            },
+        ];
+
+        assert_eq!(
+            count_actions(&changes),
+            ChangeCounts {
+                create: 2,
+                update: 1,
+                delete: 1,
+            }
         );
+        assert_eq!(
+            render_summary_line(&count_actions(&changes)),
+            "2 to create, 1 to update, 1 to delete\n"
+        );
+    }
+
+    #[test]
+    fn renders_summary_counts_in_text_output() {
+        let changes = vec![
+            ResourceChange {
+                resource_type: "aws_instance".to_string(),
+                resource_name: "web".to_string(),
+                action: "create".to_string(),
+            },
+            ResourceChange {
+                resource_type: "aws_s3_bucket".to_string(),
+                resource_name: "logs".to_string(),
+                action: "update".to_string(),
+            },
+        ];
+        let counts = count_actions(&changes);
+        let output = render_text(&changes, Path::new("/tmp/project"), true, false, &counts);
+
+        assert!(output.contains("aws_instance"));
+        assert!(output.contains("1 to create, 1 to update, 0 to delete"));
+    }
+
+    #[test]
+    fn hides_summary_counts_when_quiet() {
+        let changes = vec![ResourceChange {
+            resource_type: "aws_instance".to_string(),
+            resource_name: "web".to_string(),
+            action: "create".to_string(),
+        }];
+        let counts = count_actions(&changes);
+        let output = render_text(&changes, Path::new("/tmp/project"), true, true, &counts);
+
+        assert!(!output.contains("to create"));
+    }
+
+    #[test]
+    fn renders_table_output() {
+        let changes = [ResourceChange {
+            resource_type: "aws_instance".to_string(),
+            resource_name: "web".to_string(),
+            action: "create".to_string(),
+        }];
+        let counts = count_actions(&changes);
+        let output = render_table(&changes, Path::new("/tmp/project"), false, &counts);
 
         assert!(output.contains("Resource Type"));
         assert!(output.contains("aws_instance"));
         assert!(output.contains("create"));
+        assert!(output.contains("1 to create, 0 to update, 0 to delete"));
     }
 
     #[test]
