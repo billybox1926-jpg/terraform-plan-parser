@@ -1074,8 +1074,8 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::{
-        app_settings, count_actions, csv_escape, filter_changes, has_fail_on_actions,
-        append_github_step_summary, parse_plan_output, render_csv, render_dry_run,
+        app_settings, append_github_step_summary, count_actions, csv_escape, filter_changes,
+        has_fail_on_actions, parse_plan_output, render_csv, render_dry_run,
         render_github_step_summary, render_summary_line, render_table, render_text, ChangeCounts,
         Cli, ConfigFile, Format, ResourceChange, TerraformInput,
     };
