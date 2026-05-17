@@ -536,3 +536,18 @@ fn csv_no_header_omits_header_row() {
     assert!(stdout.contains("aws_instance"));
     fs::remove_dir_all(root).expect("remove temp dir");
 }
+
+#[test]
+fn prints_version_flag() {
+    let output = Command::new(env!("CARGO_BIN_EXE_terraform_plan_parser"))
+        .arg("--version")
+        .env("PATH", "")
+        .output()
+        .expect("run terraform_plan_parser --version");
+
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout).trim(),
+        concat!("terraform_plan_parser ", env!("CARGO_PKG_VERSION"))
+    );
+}
