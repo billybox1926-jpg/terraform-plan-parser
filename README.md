@@ -112,6 +112,15 @@ Available filter flags:
 - `--exclude-type GLOB[,GLOB]...`
 - `--include-action GLOB[,GLOB]...`
 - `--exclude-action GLOB[,GLOB]...`
+- `--fail-on ACTION[,ACTION]...` — exit with code **2** when a matching action remains after filtering
+
+## Exit codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | Runtime or usage error |
+| 2 | `--fail-on` matched one or more planned actions |
 
 ## Configuration file
 

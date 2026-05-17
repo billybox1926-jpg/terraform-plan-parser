@@ -13,6 +13,9 @@ use tracing_subscriber::fmt::MakeWriter;
 
 const CONFIG_FILE_NAME: &str = ".terraform-plan-parser.toml";
 
+/// Exit code when `--fail-on` matches one or more planned actions (CI signal).
+const EXIT_FAIL_ON_MATCH: i32 = 2;
+
 #[derive(Clone, Copy)]
 struct LevelWriter;
 
@@ -117,7 +120,7 @@ struct Cli {
     /// Exclude actions matching these comma-separated glob patterns.
     #[arg(long, value_delimiter = ',', value_name = "GLOB[,GLOB]...")]
     exclude_action: Vec<String>,
-    /// Exit with a non-zero status when the plan contains any of these actions.
+    /// Exit with status code 2 when the plan contains any of these actions.
     ///
     /// Evaluated after filters are applied. Useful in CI to block destructive plans:
     /// terraform_plan_parser . --fail-on delete
@@ -958,7 +961,7 @@ fn main() {
 
     if has_fail_on_actions(&resource_changes, &settings.fail_on) {
         tracing::error!("Plan contains forbidden actions matching --fail-on criteria");
-        std::process::exit(1);
+        std::process::exit(EXIT_FAIL_ON_MATCH);
     }
 }
 

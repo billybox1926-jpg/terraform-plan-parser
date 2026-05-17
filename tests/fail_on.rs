@@ -14,7 +14,7 @@ fn fail_on_exits_non_zero_for_matching_filtered_action() {
         .output()
         .expect("run terraform_plan_parser");
 
-    assert!(!output.status.success());
+    assert_eq!(output.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&output.stderr)
         .contains("Plan contains forbidden actions matching --fail-on criteria"));
 }
