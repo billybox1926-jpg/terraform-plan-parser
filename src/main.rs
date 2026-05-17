@@ -645,13 +645,19 @@ fn read_piped_stdin() -> Result<Option<String>, String> {
 
 fn resolve_plan_file_input(path: &Path) -> Result<TerraformInput, String> {
     if !path.exists() {
-        return Err(format!("Path does not exist: {}", path.display()));
+        return Err(format!(
+            "Error: plan file not found at \"{}\"\n\
+             Hint: check the path and ensure the file exists, or run \
+             `terraform plan -json > plan.json` in your project directory.",
+            path.display()
+        ));
     }
 
     let abs_path = absolutize(path);
     if !abs_path.is_file() {
         return Err(format!(
-            "--plan-file path is not a file: {}",
+            "Error: --plan-file path is not a file: \"{}\"\n\
+             Hint: pass a JSON/NDJSON plan file or a saved .tfplan file.",
             path.display()
         ));
     }
@@ -1329,5 +1335,14 @@ not-json
     fn accepts_table_format_from_cli() {
         let cli = Cli::parse_from(["terraform_plan_parser", "--format", "table"]);
         assert!(matches!(cli.format, Some(Format::Table)));
+    }
+
+    #[test]
+    fn resolve_plan_file_input_reports_missing_file() {
+        let error = crate::resolve_plan_file_input(Path::new("./missing-plan.json"))
+            .expect_err("missing plan file should fail");
+
+        assert!(error.contains("plan file not found"));
+        assert!(error.contains("./missing-plan.json"));
     }
 }
