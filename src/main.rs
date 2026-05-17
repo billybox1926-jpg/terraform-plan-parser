@@ -1219,11 +1219,7 @@ not-json
 
     #[test]
     fn filters_only_update_actions() {
-        let cli = Cli::parse_from([
-            "terraform_plan_parser",
-            "--include-action",
-            "update",
-        ]);
+        let cli = Cli::parse_from(["terraform_plan_parser", "--include-action", "update"]);
         let changes = vec![
             ResourceChange {
                 resource_type: "aws_instance".to_string(),
@@ -1254,11 +1250,7 @@ not-json
 
     #[test]
     fn filters_only_delete_actions() {
-        let cli = Cli::parse_from([
-            "terraform_plan_parser",
-            "--include-action",
-            "delete",
-        ]);
+        let cli = Cli::parse_from(["terraform_plan_parser", "--include-action", "delete"]);
         let changes = vec![
             ResourceChange {
                 resource_type: "aws_instance".to_string(),
