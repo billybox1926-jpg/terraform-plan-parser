@@ -35,3 +35,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: cargo build --verbose
+
+  unicode-scan:
+    name: Hidden / bidirectional Unicode scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan source files for Trojan Source characters
+        # Fails if any U+202A..U+202E or U+2066..U+2069 (bidi overrides/isolates),
+        # zero-width spaces/joiners (U+200B..U+200F), or BOM (U+FEFF) appear in
+        # tracked Rust sources, tests, or workflow files. See https://trojansource.codes/.
+        run: |
+          set -eu
+          pattern=$'[\u202a-\u202e\u2066-\u2069\u200b-\u200f\ufeff]'
+          if LC_ALL=C.UTF-8 grep -rnP --color=never \
+            --include='*.rs' --include='*.toml' --include='*.yml' --include='*.yaml' \
+            "$pattern" src tests .github Cargo.toml 2>/dev/null; then
+            echo "::error::Hidden or bidirectional Unicode characters detected."
+            exit 1
+          fi
+          echo "No hidden/bidirectional Unicode characters found."
