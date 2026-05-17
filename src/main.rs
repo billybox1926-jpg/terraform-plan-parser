@@ -318,9 +318,18 @@ fn count_actions(resource_changes: &[ResourceChange]) -> ChangeCounts {
     counts
 }
 
-fn render_summary_line(counts: &ChangeCounts) -> String {
+fn summary_action_symbols(no_emoji: bool) -> (&'static str, &'static str, &'static str) {
+    if no_emoji {
+        ("+", "~", "-")
+    } else {
+        ("➕", "🔄", "➖")
+    }
+}
+
+fn render_summary_line(counts: &ChangeCounts, no_emoji: bool) -> String {
+    let (create_sym, update_sym, delete_sym) = summary_action_symbols(no_emoji);
     format!(
-        "{} to create, {} to update, {} to delete\n",
+        "Summary:\n  {create_sym} {} to create\n  {update_sym} {} to update\n  {delete_sym} {} to delete\n",
         counts.create, counts.update, counts.delete
     )
 }
@@ -337,7 +346,7 @@ fn render_changes(
         Format::Text => render_text(resource_changes, abs_path, no_emoji, quiet, &counts),
         Format::Json => render_json(resource_changes),
         Format::Csv => render_csv(resource_changes),
-        Format::Table => render_table(resource_changes, abs_path, quiet, &counts),
+        Format::Table => render_table(resource_changes, abs_path, no_emoji, quiet, &counts),
     }
 }
 
@@ -357,7 +366,7 @@ fn render_text(
             abs_path.display()
         ));
         if !quiet {
-            output.push_str(&render_summary_line(counts));
+            output.push_str(&render_summary_line(counts, no_emoji));
         }
         return output;
     }
@@ -386,7 +395,7 @@ fn render_text(
         ));
     }
     if !quiet {
-        output.push_str(&render_summary_line(counts));
+        output.push_str(&render_summary_line(counts, no_emoji));
     }
     output
 }
@@ -414,6 +423,7 @@ fn render_csv(resource_changes: &[ResourceChange]) -> String {
 fn render_table(
     resource_changes: &[ResourceChange],
     abs_path: &Path,
+    no_emoji: bool,
     quiet: bool,
     counts: &ChangeCounts,
 ) -> String {
@@ -423,7 +433,7 @@ fn render_table(
             abs_path.display()
         );
         if !quiet {
-            output.push_str(&render_summary_line(counts));
+            output.push_str(&render_summary_line(counts, no_emoji));
         }
         return output;
     }
@@ -465,7 +475,7 @@ fn render_table(
     }
 
     if !quiet {
-        output.push_str(&render_summary_line(counts));
+        output.push_str(&render_summary_line(counts, no_emoji));
     }
 
     output
@@ -1202,8 +1212,8 @@ not-json
             }
         );
         assert_eq!(
-            render_summary_line(&count_actions(&changes)),
-            "2 to create, 1 to update, 1 to delete\n"
+            render_summary_line(&count_actions(&changes), true),
+            "Summary:\n  + 2 to create\n  ~ 1 to update\n  - 1 to delete\n"
         );
     }
 
@@ -1225,7 +1235,10 @@ not-json
         let output = render_text(&changes, Path::new("/tmp/project"), true, false, &counts);
 
         assert!(output.contains("aws_instance"));
-        assert!(output.contains("1 to create, 1 to update, 0 to delete"));
+        assert!(output.contains("Summary:"));
+        assert!(output.contains("+ 1 to create"));
+        assert!(output.contains("~ 1 to update"));
+        assert!(output.contains("- 0 to delete"));
     }
 
     #[test]
@@ -1238,7 +1251,7 @@ not-json
         let counts = count_actions(&changes);
         let output = render_text(&changes, Path::new("/tmp/project"), true, true, &counts);
 
-        assert!(!output.contains("to create"));
+        assert!(!output.contains("Summary:"));
     }
 
     #[test]
@@ -1249,12 +1262,13 @@ not-json
             action: "create".to_string(),
         }];
         let counts = count_actions(&changes);
-        let output = render_table(&changes, Path::new("/tmp/project"), false, &counts);
+        let output = render_table(&changes, Path::new("/tmp/project"), true, false, &counts);
 
         assert!(output.contains("Resource Type"));
         assert!(output.contains("aws_instance"));
         assert!(output.contains("create"));
-        assert!(output.contains("1 to create, 0 to update, 0 to delete"));
+        assert!(output.contains("Summary:"));
+        assert!(output.contains("+ 1 to create"));
     }
 
     #[test]
