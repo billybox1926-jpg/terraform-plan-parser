@@ -123,6 +123,12 @@ struct Cli {
     /// terraform_plan_parser . --fail-on delete
     #[arg(long, value_delimiter = ',', value_name = "ACTION[,ACTION]...")]
     fail_on: Vec<String>,
+    /// Append a Markdown plan summary to `$GITHUB_STEP_SUMMARY` when that variable is set.
+    ///
+    /// In GitHub Actions the summary is written automatically when the environment
+    /// variable is present; pass this flag to require an explicit opt-in.
+    #[arg(long)]
+    github_summary: bool,
     /// Generate shell completion scripts for the given shell, then exit.
     #[arg(long, value_enum, value_name = "SHELL")]
     completions: Option<Shell>,
@@ -151,6 +157,7 @@ struct ConfigFile {
     include_action: Vec<String>,
     exclude_action: Vec<String>,
     fail_on: Vec<String>,
+    github_summary: Option<bool>,
 }
 
 #[derive(Debug)]
@@ -166,6 +173,7 @@ struct AppSettings {
     include_action: Vec<String>,
     exclude_action: Vec<String>,
     fail_on: Vec<String>,
+    github_summary: bool,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize)]
@@ -359,6 +367,104 @@ fn render_summary_line(counts: &ChangeCounts, no_emoji: bool) -> String {
         "Summary:\n  {create_sym} {} to create\n  {update_sym} {} to update\n  {delete_sym} {} to delete\n",
         counts.create, counts.update, counts.delete
     )
+}
+
+fn render_github_step_summary(
+    display_path: &Path,
+    resource_changes: &[ResourceChange],
+    counts: &ChangeCounts,
+    no_emoji: bool,
+) -> String {
+    use std::fmt::Write;
+
+    let (create_sym, update_sym, delete_sym) = summary_action_symbols(no_emoji);
+    let mut output = String::new();
+    writeln!(output, "## Terraform plan summary").unwrap();
+    writeln!(output).unwrap();
+    writeln!(output, "**Plan:** `{}`", display_path.display()).unwrap();
+    writeln!(output).unwrap();
+    writeln!(output, "| | Count |").unwrap();
+    writeln!(output, "| --- | ---: |").unwrap();
+    writeln!(output, "| {create_sym} Create | {} |", counts.create).unwrap();
+    writeln!(output, "| {update_sym} Update | {} |", counts.update).unwrap();
+    writeln!(output, "| {delete_sym} Delete | {} |", counts.delete).unwrap();
+
+    if !resource_changes.is_empty() {
+        writeln!(output).unwrap();
+        writeln!(output, "### Resource changes").unwrap();
+        writeln!(output).unwrap();
+        writeln!(output, "| Action | Type | Name |").unwrap();
+        writeln!(output, "| --- | --- | --- |").unwrap();
+        for change in resource_changes {
+            writeln!(
+                output,
+                "| {} | {} | {} |",
+                change.action, change.resource_type, change.resource_name
+            )
+            .unwrap();
+        }
+    }
+
+    output
+}
+
+fn append_github_step_summary(
+    summary_path: &str,
+    display_path: &Path,
+    resource_changes: &[ResourceChange],
+    counts: &ChangeCounts,
+    no_emoji: bool,
+) -> std::io::Result<()> {
+    use std::io::Write;
+
+    let markdown = render_github_step_summary(display_path, resource_changes, counts, no_emoji);
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(summary_path)?;
+    if file.metadata()?.len() > 0 {
+        writeln!(file)?;
+    }
+    write!(file, "{markdown}")?;
+    if !markdown.ends_with('\n') {
+        writeln!(file)?;
+    }
+    Ok(())
+}
+
+fn should_write_github_summary(settings: &AppSettings) -> bool {
+    std::env::var_os("GITHUB_STEP_SUMMARY").is_some() || settings.github_summary
+}
+
+fn write_github_summary_if_enabled(
+    settings: &AppSettings,
+    display_path: &Path,
+    resource_changes: &[ResourceChange],
+) {
+    if !should_write_github_summary(settings) {
+        return;
+    }
+
+    let Some(summary_path) = std::env::var_os("GITHUB_STEP_SUMMARY") else {
+        if settings.github_summary {
+            tracing::warn!(
+                "--github-summary was set but GITHUB_STEP_SUMMARY is not set; skipping summary"
+            );
+        }
+        return;
+    };
+
+    let summary_path = summary_path.to_string_lossy();
+    let counts = count_actions(resource_changes);
+    if let Err(error) = append_github_step_summary(
+        &summary_path,
+        display_path,
+        resource_changes,
+        &counts,
+        settings.no_emoji,
+    ) {
+        tracing::warn!("Failed to write GitHub Actions summary: {error}");
+    }
 }
 
 fn render_changes(
@@ -611,6 +717,7 @@ fn app_settings(cli: &Cli, config: ConfigFile, config_path: Option<&Path>) -> Ap
         include_action: cli_or_config_values(&cli.include_action, config.include_action),
         exclude_action: cli_or_config_values(&cli.exclude_action, config.exclude_action),
         fail_on: cli_or_config_values(&cli.fail_on, config.fail_on),
+        github_summary: cli.github_summary || config.github_summary.unwrap_or(false),
     }
 }
 
@@ -956,6 +1063,8 @@ fn main() {
         .trim_end()
     );
 
+    write_github_summary_if_enabled(&settings, display_path, &resource_changes);
+
     if has_fail_on_actions(&resource_changes, &settings.fail_on) {
         tracing::error!("Plan contains forbidden actions matching --fail-on criteria");
         std::process::exit(1);
@@ -966,8 +1075,9 @@ fn main() {
 mod tests {
     use super::{
         app_settings, count_actions, csv_escape, filter_changes, has_fail_on_actions,
-        parse_plan_output, render_csv, render_dry_run, render_summary_line, render_table,
-        render_text, ChangeCounts, Cli, ConfigFile, Format, ResourceChange, TerraformInput,
+        append_github_step_summary, parse_plan_output, render_csv, render_dry_run,
+        render_github_step_summary, render_summary_line, render_table, render_text, ChangeCounts,
+        Cli, ConfigFile, Format, ResourceChange, TerraformInput,
     };
     use clap::Parser;
     use std::path::Path;
@@ -1469,5 +1579,53 @@ not-json
             &changes,
             &["delete".to_string(), "create".to_string()]
         ));
+    }
+
+    #[test]
+    fn renders_github_step_summary_markdown() {
+        let changes = vec![ResourceChange {
+            resource_type: "aws_instance".to_string(),
+            resource_name: "web".to_string(),
+            action: "create".to_string(),
+        }];
+        let counts = count_actions(&changes);
+        let summary = render_github_step_summary(Path::new("plan.ndjson"), &changes, &counts, true);
+
+        assert!(summary.contains("## Terraform plan summary"));
+        assert!(summary.contains("**Plan:** `plan.ndjson`"));
+        assert!(summary.contains("| + Create | 1 |"));
+        assert!(summary.contains("| create | aws_instance | web |"));
+    }
+
+    #[test]
+    fn append_github_step_summary_writes_to_file() {
+        let dir = std::env::temp_dir().join(format!(
+            "terraform_plan_parser_summary_{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let summary_path = dir.join("summary.md");
+        let summary_path = summary_path.to_string_lossy();
+
+        let changes = vec![ResourceChange {
+            resource_type: "aws_s3_bucket".to_string(),
+            resource_name: "logs".to_string(),
+            action: "delete".to_string(),
+        }];
+        let counts = count_actions(&changes);
+
+        append_github_step_summary(
+            &summary_path,
+            Path::new("plan.ndjson"),
+            &changes,
+            &counts,
+            true,
+        )
+        .expect("append summary");
+
+        let written = std::fs::read_to_string(dir.join("summary.md")).expect("read summary");
+        assert!(written.contains("## Terraform plan summary"));
+        assert!(written.contains("| - Delete | 1 |"));
+        let _ = std::fs::remove_dir_all(dir);
     }
 }
