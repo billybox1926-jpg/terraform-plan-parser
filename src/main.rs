@@ -1,4 +1,5 @@
-use clap::Parser;
+use clap::{CommandFactory, Parser};
+use clap_complete::Shell;
 use glob::Pattern;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -63,6 +64,9 @@ impl std::io::Write for OutputWriter {
 
   # Filter to create actions only
   terraform_plan_parser . --plan-file plan.ndjson --include-action create
+
+  # Install shell completions (bash example)
+  terraform_plan_parser --completions bash > /etc/bash_completion.d/terraform_plan_parser
 "#
 )]
 struct Cli {
@@ -113,6 +117,9 @@ struct Cli {
     /// Exclude actions matching these comma-separated glob patterns.
     #[arg(long, value_delimiter = ',', value_name = "GLOB[,GLOB]...")]
     exclude_action: Vec<String>,
+    /// Generate shell completion scripts for the given shell, then exit.
+    #[arg(long, value_enum, value_name = "SHELL")]
+    completions: Option<Shell>,
 }
 
 #[derive(clap::ValueEnum, Clone, Debug, Deserialize)]
@@ -330,9 +337,6 @@ fn count_actions(resource_changes: &[ResourceChange]) -> ChangeCounts {
     counts
 }
 
-fn render_summary_line(counts: &ChangeCounts) -> String {
-    format!(
-        "{} to create, {} to update, {} to delete\n",
 fn summary_action_symbols(no_emoji: bool) -> (&'static str, &'static str, &'static str) {
     if no_emoji {
         ("+", "~", "-")
@@ -361,7 +365,6 @@ fn render_changes(
         Format::Text => render_text(resource_changes, abs_path, no_emoji, quiet, &counts),
         Format::Json => render_json(resource_changes),
         Format::Csv => render_csv(resource_changes),
-        Format::Table => render_table(resource_changes, abs_path, quiet, &counts),
         Format::Table => render_table(resource_changes, abs_path, no_emoji, quiet, &counts),
     }
 }
@@ -382,7 +385,6 @@ fn render_text(
             abs_path.display()
         ));
         if !quiet {
-            output.push_str(&render_summary_line(counts));
             output.push_str(&render_summary_line(counts, no_emoji));
         }
         return output;
@@ -418,7 +420,6 @@ fn render_text(
         ));
     }
     if !quiet {
-        output.push_str(&render_summary_line(counts));
         output.push_str(&render_summary_line(counts, no_emoji));
     }
     output
@@ -457,7 +458,6 @@ fn render_table(
             abs_path.display()
         );
         if !quiet {
-            output.push_str(&render_summary_line(counts));
             output.push_str(&render_summary_line(counts, no_emoji));
         }
         return output;
@@ -500,7 +500,6 @@ fn render_table(
     }
 
     if !quiet {
-        output.push_str(&render_summary_line(counts));
         output.push_str(&render_summary_line(counts, no_emoji));
     }
 
@@ -881,6 +880,12 @@ fn init_tracing(verbose: bool) {
 
 fn main() {
     let cli = Cli::parse();
+    if let Some(shell) = cli.completions {
+        let mut cmd = Cli::command();
+        let bin_name = cmd.get_name().to_string();
+        clap_complete::generate(shell, &mut cmd, bin_name, &mut std::io::stdout());
+        return;
+    }
     let (config, config_path) = load_config(&cli).unwrap_or_else(|error| {
         eprintln!("{error}");
         std::process::exit(1);
@@ -938,8 +943,6 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::{
-        app_settings, csv_escape, filter_changes, parse_plan_output, render_csv, render_dry_run,
-        render_table, render_text, Cli, ConfigFile, Format, ResourceChange, TerraformInput,
         app_settings, count_actions, csv_escape, filter_changes, parse_plan_output, render_csv,
         render_dry_run, render_summary_line, render_table, render_text, ChangeCounts, Cli,
         ConfigFile, Format, ResourceChange, TerraformInput,
@@ -1193,6 +1196,76 @@ not-json
     }
 
     #[test]
+    fn filters_only_update_actions() {
+        let cli = Cli::parse_from([
+            "terraform_plan_parser",
+            "--include-action",
+            "update",
+        ]);
+        let changes = vec![
+            ResourceChange {
+                resource_type: "aws_instance".to_string(),
+                resource_name: "web".to_string(),
+                action: "create".to_string(),
+            },
+            ResourceChange {
+                resource_type: "aws_s3_bucket".to_string(),
+                resource_name: "logs".to_string(),
+                action: "update".to_string(),
+            },
+            ResourceChange {
+                resource_type: "aws_rds_cluster".to_string(),
+                resource_name: "db".to_string(),
+                action: "delete".to_string(),
+            },
+        ];
+
+        assert_eq!(
+            filter_changes(changes, &app_settings(&cli, ConfigFile::default(), None)),
+            vec![ResourceChange {
+                resource_type: "aws_s3_bucket".to_string(),
+                resource_name: "logs".to_string(),
+                action: "update".to_string(),
+            }]
+        );
+    }
+
+    #[test]
+    fn filters_only_delete_actions() {
+        let cli = Cli::parse_from([
+            "terraform_plan_parser",
+            "--include-action",
+            "delete",
+        ]);
+        let changes = vec![
+            ResourceChange {
+                resource_type: "aws_instance".to_string(),
+                resource_name: "web".to_string(),
+                action: "create".to_string(),
+            },
+            ResourceChange {
+                resource_type: "aws_s3_bucket".to_string(),
+                resource_name: "logs".to_string(),
+                action: "update".to_string(),
+            },
+            ResourceChange {
+                resource_type: "aws_rds_cluster".to_string(),
+                resource_name: "db".to_string(),
+                action: "delete".to_string(),
+            },
+        ];
+
+        assert_eq!(
+            filter_changes(changes, &app_settings(&cli, ConfigFile::default(), None)),
+            vec![ResourceChange {
+                resource_type: "aws_rds_cluster".to_string(),
+                resource_name: "db".to_string(),
+                action: "delete".to_string(),
+            }]
+        );
+    }
+
+    #[test]
     fn renders_dry_run_for_stdin_without_terraform_command() {
         let output = render_dry_run(&TerraformInput::StdinJson("{}".to_string()));
 
@@ -1246,8 +1319,6 @@ not-json
             }
         );
         assert_eq!(
-            render_summary_line(&count_actions(&changes)),
-            "2 to create, 1 to update, 1 to delete\n"
             render_summary_line(&count_actions(&changes), true),
             "Summary:\n  + 2 to create\n  ~ 1 to update\n  - 1 to delete\n"
         );
@@ -1271,7 +1342,6 @@ not-json
         let output = render_text(&changes, Path::new("/tmp/project"), true, false, &counts);
 
         assert!(output.contains("aws_instance"));
-        assert!(output.contains("1 to create, 1 to update, 0 to delete"));
         assert!(output.contains("Summary:"));
         assert!(output.contains("+ 1 to create"));
         assert!(output.contains("~ 1 to update"));
@@ -1288,7 +1358,6 @@ not-json
         let counts = count_actions(&changes);
         let output = render_text(&changes, Path::new("/tmp/project"), true, true, &counts);
 
-        assert!(!output.contains("to create"));
         assert!(!output.contains("Summary:"));
     }
 
@@ -1300,13 +1369,11 @@ not-json
             action: "create".to_string(),
         }];
         let counts = count_actions(&changes);
-        let output = render_table(&changes, Path::new("/tmp/project"), false, &counts);
         let output = render_table(&changes, Path::new("/tmp/project"), true, false, &counts);
 
         assert!(output.contains("Resource Type"));
         assert!(output.contains("aws_instance"));
         assert!(output.contains("create"));
-        assert!(output.contains("1 to create, 0 to update, 0 to delete"));
         assert!(output.contains("Summary:"));
         assert!(output.contains("+ 1 to create"));
     }
