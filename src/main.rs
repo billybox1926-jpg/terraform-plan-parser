@@ -52,7 +52,19 @@ impl std::io::Write for OutputWriter {
 }
 
 #[derive(Parser)]
-#[command(name = "terraform_plan_parser")]
+#[command(
+    name = "terraform_plan_parser",
+    after_help = r#"EXAMPLES:
+  # Parse a saved JSON plan file
+  terraform_plan_parser . --plan-file plan.ndjson --format csv
+
+  # Read plan JSON from stdin
+  cat plan.ndjson | terraform_plan_parser . --format table
+
+  # Filter to create actions only
+  terraform_plan_parser . --plan-file plan.ndjson --include-action create
+"#
+)]
 struct Cli {
     /// Terraform project directory or saved .tfplan file to inspect.
     #[arg(default_value = ".")]
@@ -321,6 +333,18 @@ fn count_actions(resource_changes: &[ResourceChange]) -> ChangeCounts {
 fn render_summary_line(counts: &ChangeCounts) -> String {
     format!(
         "{} to create, {} to update, {} to delete\n",
+fn summary_action_symbols(no_emoji: bool) -> (&'static str, &'static str, &'static str) {
+    if no_emoji {
+        ("+", "~", "-")
+    } else {
+        ("➕", "🔄", "➖")
+    }
+}
+
+fn render_summary_line(counts: &ChangeCounts, no_emoji: bool) -> String {
+    let (create_sym, update_sym, delete_sym) = summary_action_symbols(no_emoji);
+    format!(
+        "Summary:\n  {create_sym} {} to create\n  {update_sym} {} to update\n  {delete_sym} {} to delete\n",
         counts.create, counts.update, counts.delete
     )
 }
@@ -338,6 +362,7 @@ fn render_changes(
         Format::Json => render_json(resource_changes),
         Format::Csv => render_csv(resource_changes),
         Format::Table => render_table(resource_changes, abs_path, quiet, &counts),
+        Format::Table => render_table(resource_changes, abs_path, no_emoji, quiet, &counts),
     }
 }
 
@@ -358,6 +383,7 @@ fn render_text(
         ));
         if !quiet {
             output.push_str(&render_summary_line(counts));
+            output.push_str(&render_summary_line(counts, no_emoji));
         }
         return output;
     }
@@ -370,7 +396,13 @@ fn render_text(
     ));
     for change in resource_changes {
         let symbol = if no_emoji {
-            ""
+            match change.action.as_str() {
+                "create" => "+ ",
+                "update" => "~ ",
+                "delete" => "- ",
+                "read" => "? ",
+                _ => "* ",
+            }
         } else {
             match change.action.as_str() {
                 "create" => "➕ ",
@@ -387,6 +419,7 @@ fn render_text(
     }
     if !quiet {
         output.push_str(&render_summary_line(counts));
+        output.push_str(&render_summary_line(counts, no_emoji));
     }
     output
 }
@@ -414,6 +447,7 @@ fn render_csv(resource_changes: &[ResourceChange]) -> String {
 fn render_table(
     resource_changes: &[ResourceChange],
     abs_path: &Path,
+    no_emoji: bool,
     quiet: bool,
     counts: &ChangeCounts,
 ) -> String {
@@ -424,6 +458,7 @@ fn render_table(
         );
         if !quiet {
             output.push_str(&render_summary_line(counts));
+            output.push_str(&render_summary_line(counts, no_emoji));
         }
         return output;
     }
@@ -466,6 +501,7 @@ fn render_table(
 
     if !quiet {
         output.push_str(&render_summary_line(counts));
+        output.push_str(&render_summary_line(counts, no_emoji));
     }
 
     output
@@ -623,13 +659,19 @@ fn read_piped_stdin() -> Result<Option<String>, String> {
 
 fn resolve_plan_file_input(path: &Path) -> Result<TerraformInput, String> {
     if !path.exists() {
-        return Err(format!("Path does not exist: {}", path.display()));
+        return Err(format!(
+            "Error: plan file not found at \"{}\"\n\
+             Hint: check the path and ensure the file exists, or run \
+             `terraform plan -json > plan.json` in your project directory.",
+            path.display()
+        ));
     }
 
     let abs_path = absolutize(path);
     if !abs_path.is_file() {
         return Err(format!(
-            "--plan-file path is not a file: {}",
+            "Error: --plan-file path is not a file: \"{}\"\n\
+             Hint: pass a JSON/NDJSON plan file or a saved .tfplan file.",
             path.display()
         ));
     }
@@ -896,6 +938,8 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::{
+        app_settings, csv_escape, filter_changes, parse_plan_output, render_csv, render_dry_run,
+        render_table, render_text, Cli, ConfigFile, Format, ResourceChange, TerraformInput,
         app_settings, count_actions, csv_escape, filter_changes, parse_plan_output, render_csv,
         render_dry_run, render_summary_line, render_table, render_text, ChangeCounts, Cli,
         ConfigFile, Format, ResourceChange, TerraformInput,
@@ -1204,6 +1248,8 @@ not-json
         assert_eq!(
             render_summary_line(&count_actions(&changes)),
             "2 to create, 1 to update, 1 to delete\n"
+            render_summary_line(&count_actions(&changes), true),
+            "Summary:\n  + 2 to create\n  ~ 1 to update\n  - 1 to delete\n"
         );
     }
 
@@ -1226,6 +1272,10 @@ not-json
 
         assert!(output.contains("aws_instance"));
         assert!(output.contains("1 to create, 1 to update, 0 to delete"));
+        assert!(output.contains("Summary:"));
+        assert!(output.contains("+ 1 to create"));
+        assert!(output.contains("~ 1 to update"));
+        assert!(output.contains("- 0 to delete"));
     }
 
     #[test]
@@ -1239,6 +1289,7 @@ not-json
         let output = render_text(&changes, Path::new("/tmp/project"), true, true, &counts);
 
         assert!(!output.contains("to create"));
+        assert!(!output.contains("Summary:"));
     }
 
     #[test]
@@ -1250,11 +1301,14 @@ not-json
         }];
         let counts = count_actions(&changes);
         let output = render_table(&changes, Path::new("/tmp/project"), false, &counts);
+        let output = render_table(&changes, Path::new("/tmp/project"), true, false, &counts);
 
         assert!(output.contains("Resource Type"));
         assert!(output.contains("aws_instance"));
         assert!(output.contains("create"));
         assert!(output.contains("1 to create, 0 to update, 0 to delete"));
+        assert!(output.contains("Summary:"));
+        assert!(output.contains("+ 1 to create"));
     }
 
     #[test]
@@ -1303,5 +1357,14 @@ not-json
     fn accepts_table_format_from_cli() {
         let cli = Cli::parse_from(["terraform_plan_parser", "--format", "table"]);
         assert!(matches!(cli.format, Some(Format::Table)));
+    }
+
+    #[test]
+    fn resolve_plan_file_input_reports_missing_file() {
+        let error = crate::resolve_plan_file_input(Path::new("./missing-plan.json"))
+            .expect_err("missing plan file should fail");
+
+        assert!(error.contains("plan file not found"));
+        assert!(error.contains("./missing-plan.json"));
     }
 }
