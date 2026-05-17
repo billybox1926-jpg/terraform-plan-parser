@@ -99,6 +99,9 @@ struct Cli {
     /// Suppress the action summary line at the end of text/table output.
     #[arg(short, long)]
     quiet: bool,
+    /// Omit the header row from CSV output.
+    #[arg(long)]
+    no_header: bool,
     /// Include only resource types matching these comma-separated glob patterns.
     ///
     /// Exact values still work, and wildcards such as `aws_*` or `*instance`
@@ -152,6 +155,7 @@ struct ConfigFile {
     dry_run: Option<bool>,
     verbose: Option<bool>,
     quiet: Option<bool>,
+    no_header: Option<bool>,
     include_type: Vec<String>,
     exclude_type: Vec<String>,
     include_action: Vec<String>,
@@ -168,6 +172,7 @@ struct AppSettings {
     dry_run: bool,
     verbose: bool,
     quiet: bool,
+    no_header: bool,
     include_type: Vec<String>,
     exclude_type: Vec<String>,
     include_action: Vec<String>,
@@ -473,12 +478,13 @@ fn render_changes(
     format: &Format,
     no_emoji: bool,
     quiet: bool,
+    no_header: bool,
 ) -> String {
     let counts = count_actions(resource_changes);
     match format {
         Format::Text => render_text(resource_changes, abs_path, no_emoji, quiet, &counts),
         Format::Json => render_json(resource_changes),
-        Format::Csv => render_csv(resource_changes),
+        Format::Csv => render_csv(resource_changes, no_header),
         Format::Table => render_table(resource_changes, abs_path, no_emoji, quiet, &counts),
     }
 }
@@ -546,8 +552,11 @@ fn render_json(resource_changes: &[ResourceChange]) -> String {
     )
 }
 
-fn render_csv(resource_changes: &[ResourceChange]) -> String {
-    let mut output = String::from("resource_type,resource_name,action\n");
+fn render_csv(resource_changes: &[ResourceChange], no_header: bool) -> String {
+    let mut output = String::new();
+    if !no_header {
+        output.push_str("resource_type,resource_name,action\n");
+    }
     for change in resource_changes {
         output.push_str(&format!(
             "{},{},{}\n",
@@ -712,6 +721,7 @@ fn app_settings(cli: &Cli, config: ConfigFile, config_path: Option<&Path>) -> Ap
         dry_run: cli.dry_run || config.dry_run.unwrap_or(false),
         verbose: cli.verbose || config.verbose.unwrap_or(false),
         quiet: cli.quiet || config.quiet.unwrap_or(false),
+        no_header: cli.no_header || config.no_header.unwrap_or(false),
         include_type: cli_or_config_values(&cli.include_type, config.include_type),
         exclude_type: cli_or_config_values(&cli.exclude_type, config.exclude_type),
         include_action: cli_or_config_values(&cli.include_action, config.include_action),
@@ -1058,7 +1068,8 @@ fn main() {
             display_path,
             &settings.format,
             settings.no_emoji,
-            settings.quiet
+            settings.quiet,
+            settings.no_header
         )
         .trim_end()
     );
@@ -1405,12 +1416,26 @@ not-json
         assert_eq!(csv_escape("name,with,commas"), "\"name,with,commas\"");
         assert_eq!(csv_escape("name \"quoted\""), "\"name \"\"quoted\"\"\"");
         assert_eq!(
-            render_csv(&[ResourceChange {
-                resource_type: "aws_instance".to_string(),
-                resource_name: "web".to_string(),
-                action: "create".to_string(),
-            }]),
+            render_csv(
+                &[ResourceChange {
+                    resource_type: "aws_instance".to_string(),
+                    resource_name: "web".to_string(),
+                    action: "create".to_string(),
+                }],
+                false,
+            ),
             "resource_type,resource_name,action\naws_instance,web,create\n"
+        );
+        assert_eq!(
+            render_csv(
+                &[ResourceChange {
+                    resource_type: "aws_instance".to_string(),
+                    resource_name: "web".to_string(),
+                    action: "create".to_string(),
+                }],
+                true,
+            ),
+            "aws_instance,web,create\n"
         );
     }
 
