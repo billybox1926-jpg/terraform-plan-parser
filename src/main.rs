@@ -128,11 +128,16 @@ struct Cli {
 
     /// Shorthand to include only update actions.
     #[arg(short = 'u', long)]
+    /// Shorthand to include only replace actions.
+    #[arg(short = 'r', long)]
+    only_replace: bool,
+    /// Shorthand to include only replace actions.
+    #[arg(short = 'r', long)]
+    only_replace: bool,
     only_update: bool,
 
     /// Shorthand to include only replace actions.
     #[arg(short = 'r', long)]
-    only_replace: bool,
 
     /// Exclude actions matching these comma-separated glob patterns.
     #[arg(long, value_delimiter = ',', value_name = "GLOB[,GLOB]...")]
@@ -213,7 +218,6 @@ struct AppSettings {
     fail_on: Vec<String>,
     github_summary: bool,
     sort_by: Option<SortBy>,
-    only_replace: bool,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize)]
@@ -868,7 +872,7 @@ fn resolve_plan_file_input(path: &Path) -> Result<TerraformInput, String> {
     if !path.exists() {
         return Err(format!(
             "Error: plan file not found at \"{}\"\n\
-            Hint: check the path and ensure the file exists, or run \n            \`terraform plan -json > plan.json\` in your project directory.",
+            Hint: check the path and ensure the file exists, or run \n            `terraform plan -json > plan.json` in your project directory.",
             path.display()
         ));
     }
@@ -939,7 +943,7 @@ fn render_dry_run(input: &TerraformInput) -> String {
                 .to_string()
         }
         TerraformInput::Directory(directory) => format!(
-            "Dry run: would execute \`terraform plan -json -input=false -no-color\` in '{}'.\n",
+            "Dry run: would execute `terraform plan -json -input=false -no-color` in '{}'.\n",
             directory.display()
         ),
         TerraformInput::JsonPlanFile(plan_file) => format!(
@@ -949,7 +953,7 @@ fn render_dry_run(input: &TerraformInput) -> String {
         TerraformInput::BinaryPlanFile(plan_file) => {
             let current_dir = plan_file.parent().unwrap_or_else(|| Path::new("."));
             format!(
-                "Dry run: would execute \`terraform show -json {}\` in '{}'.\n",
+                "Dry run: would execute `terraform show -json {}` in '{}'.\n",
                 plan_file.display(),
                 current_dir.display()
             )
@@ -1642,7 +1646,7 @@ not-json
 
         assert_eq!(
             output,
-            "Dry run: would execute \`terraform plan -json -input=false -no-color\` in '/tmp/project'.\n"
+            "Dry run: would execute `terraform plan -json -input=false -no-color` in '/tmp/project'.\n"
         );
     }
 
@@ -1654,7 +1658,7 @@ not-json
 
         assert_eq!(
             output,
-            "Dry run: would execute \`terraform show -json /tmp/project/tfplan\` in '/tmp/project'.\n"
+            "Dry run: would execute `terraform show -json /tmp/project/tfplan` in '/tmp/project'.\n"
         );
     }
 
@@ -1718,7 +1722,7 @@ not-json
         let summary = render_github_step_summary(Path::new("plan.ndjson"), &changes, &counts, true);
 
         assert!(summary.contains("## Terraform plan summary"));
-        assert!(summary.contains("**Plan:** \`plan.ndjson\`"));
+        assert!(summary.contains("**Plan:** `plan.ndjson`"));
         assert!(summary.contains("| + Create | 1 |"));
         assert!(summary.contains("| create | aws_instance | web |"));
     }
