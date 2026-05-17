@@ -508,4 +508,3 @@ fn csv_no_header_omits_header_row() {
     assert!(stdout.contains("aws_instance"));
     fs::remove_dir_all(root).expect("remove temp dir");
 }
-
