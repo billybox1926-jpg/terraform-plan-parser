@@ -373,3 +373,41 @@ fn filters_only_create_actions() {
 
     fs::remove_dir_all(root).expect("remove temp dir");
 }
+
+const MIXED_ACTIONS_PLAN: &str = r#"{"@level":"info","change":{"resource":{"resource_type":"aws_instance","resource_name":"web"},"action":"create"}}
+{"@level":"info","change":{"resource":{"resource_type":"aws_s3_bucket","resource_name":"logs"},"action":"update"}}
+{"@level":"info","change":{"resource":{"resource_type":"aws_rds_cluster","resource_name":"db"},"action":"delete"}}
+"#;
+
+#[test]
+fn filters_only_delete_actions() {
+    let root = temp_dir("filter_delete_actions");
+    let plan_file = root.join("plan.ndjson");
+
+    fs::write(&plan_file, MIXED_ACTIONS_PLAN).expect("write plan fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_terraform_plan_parser"))
+        .arg(".")
+        .current_dir(&root)
+        .arg("--plan-file")
+        .arg("plan.ndjson")
+        .arg("--format")
+        .arg("csv")
+        .arg("--include-action")
+        .arg("delete")
+        .env("PATH", "")
+        .output()
+        .expect("run terraform_plan_parser");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "resource_type,resource_name,action\naws_rds_cluster,db,delete\n"
+    );
+
+    fs::remove_dir_all(root).expect("remove temp dir");
+}
