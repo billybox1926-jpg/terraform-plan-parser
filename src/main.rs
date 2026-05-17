@@ -66,6 +66,9 @@ impl std::io::Write for OutputWriter {
   # Filter to create actions only
   terraform_plan_parser . --plan-file plan.ndjson --include-action create
 
+  # Filter to replace actions only
+  terraform_plan_parser . --plan-file plan.ndjson -r
+
   # Install shell completions (bash example)
   terraform_plan_parser --completions bash > /etc/bash_completion.d/terraform_plan_parser
 "#
@@ -186,6 +189,7 @@ struct ConfigFile {
     exclude_type: Vec<String>,
     include_action: Vec<String>,
     only_delete: Option<bool>,
+    only_replace: Option<bool>,
     exclude_action: Vec<String>,
     fail_on: Vec<String>,
     github_summary: Option<bool>,
@@ -770,7 +774,7 @@ fn resolve_include_action(cli: &Cli, config: &ConfigFile) -> Vec<String> {
     if cli.only_update {
         return vec!["update".to_string()];
     }
-    if cli.only_replace {
+    if cli.only_replace || config.only_replace.unwrap_or(false) {
         return vec!["replace".to_string()];
     }
     cli_or_config_values(&cli.include_action, config.include_action.clone())
