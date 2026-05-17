@@ -1,10 +1,10 @@
-# TODO — terraform-plan-parser
+# Roadmap — terraform-plan-parser
 
 ## High Priority
 
 - [x] Add proper CLI argument parsing with clap
   - Replaced manual `std::env::args()` with clap derive parsing.
-  - Added flags: `--format`, `--dry-run`, `--verbose`, `--filter-action`, and `--plan-file`.
+  - Added flags: `--format`, `--dry-run`, `--verbose`, `--include-action`, `--exclude-action`, `--fail-on`, `--completions`, and `--plan-file`.
 - [x] Add a comprehensive `.gitignore`
   - Rust: `/target`, `**/*.rs.bk`.
   - Terraform: `*.tfstate`, `*.tfstate.*`, `.terraform/`, `.terraform.lock.hcl`.
@@ -23,7 +23,7 @@
   - Unit tests for JSON parsing logic.
   - Integration tests with `--dry-run` and `--plan-file` to avoid needing real Terraform.
 
-## Low Priority / Future
+## Low Priority / Completed
 
 - [x] Support saved `.tfplan` files
   - `--plan-file plan.tfplan` instead of live `terraform plan -json`.
@@ -32,9 +32,13 @@
   - Replaced `println!`/`eprintln!` diagnostics with tracing output.
   - Configurable via `--verbose` flag for debug-level output.
 - [x] Add filtering capabilities
-  - `--filter-type` with glob support, for example `aws_*`.
-  - `--filter-action`, for example `create` or `delete`.
+  - `--include-type` and `--exclude-type` with glob support, for example `aws_*`.
+  - `--include-action` and `--exclude-action`, for example `create` or `delete`.
 - [x] Add configuration file support
   - `.terraform-plan-parser.toml` for persistent filters and defaults.
+- [x] Add CI guardrails
+  - `--fail-on` exits non-zero when filtered plans contain blocked actions.
+- [x] Add shell completions
+  - `--completions` generates bash, elvish, fish, PowerShell, or zsh scripts.
 - [x] Consolidate architecture docs
   - Merged `ARCHITECTURE.md` and `docs/architecture.md` into root `ARCHITECTURE.md` as the canonical doc.

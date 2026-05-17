@@ -1,5 +1,0 @@
-# Rust dependencies for terraform_plan_parser
-# This file is for reference; actual dependencies are managed via Cargo.toml.
-
-serde = "1.0"
-serde_json = "1.0"

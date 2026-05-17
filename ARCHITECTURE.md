@@ -13,6 +13,7 @@ This root-level `ARCHITECTURE.md` is the canonical architecture document for the
 │                        User Shell                           │
 │  $ terraform_plan_parser [DIRECTORY] [--plan-file PATH]     │
 │    [--config PATH] [--dry-run] [--format text|json|csv|table]│
+│    [--fail-on ACTION] [--completions SHELL]                 │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
@@ -20,7 +21,9 @@ This root-level `ARCHITECTURE.md` is the canonical architecture document for the
 │                    CLI Interface Layer                      │
 │  • Parse command-line arguments with clap derive macros      │
 │  • Accept directory/.tfplan, --plan-file, format, emoji,    │
-│    dry-run, verbosity, config, and filter flags             │
+│    dry-run, verbosity, config, filters, fail-on, and        │
+│    completion flags                                         │
+│  • Generate shell completions before config/input handling  │
 │  • CLI path and filter values override config defaults      │
 └──────────────────────┬──────────────────────────────────────┘
                        │
@@ -90,7 +93,15 @@ This root-level `ARCHITECTURE.md` is the canonical architecture document for the
 │                   Rendering Layer                           │
 │  • Render text, JSON, CSV, or table output                  │
 │  • Map text actions to emoji symbols unless disabled        │
+│  • Honor quiet mode for text/table summary lines            │
 │  • Keep machine-readable JSON/CSV payloads on stdout        │
+└──────────────────────┬──────────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   Policy Layer                              │
+│  • Evaluate --fail-on against filtered action values        │
+│  • Exit with code 1 after rendering matching forbidden plans│
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -118,10 +129,10 @@ This root-level `ARCHITECTURE.md` is the canonical architecture document for the
                                                Filters
                                                    │
                                                    ▼
-                                               Renderer
+                                               Renderer ─────▶ stdout
                                                    │
                                                    ▼
-                                                stdout
+                                             Fail-on check
 ```
 
 ## Configuration
@@ -140,10 +151,12 @@ format = "csv"
 no-emoji = true
 dry-run = false
 verbose = false
+quiet = false
 include-type = ["aws_*"]
 exclude-type = ["*_bucket"]
 include-action = ["create", "update"]
 exclude-action = ["delete"]
+fail-on = ["delete"]
 ```
 
 CLI values take precedence over config defaults for `plan-file`, `format`, and each filter list. Boolean flags are enabled when either the CLI flag or the config value is true. Relative `plan-file` paths from config are resolved relative to the config file directory.
@@ -184,9 +197,11 @@ The project is intentionally kept as a single-file CLI for simplicity. As featur
 | Config-relative plan files | A committed project config can point at a local generated plan fixture or CI artifact path predictably. |
 | Stream parsing | `terraform plan -json` emits newline-delimited JSON, so live output is parsed line-by-line instead of buffering the whole stream first. |
 | Absolute path resolution | Prevents Windows-specific issues where `.current_dir()` behaves unexpectedly with relative paths. |
-| Exit codes | `0` means success or no changes; `1` means invalid input, missing Terraform, failed plan/show, unreadable config, or parse/load errors. |
+| Exit codes | `0` means success or no changes; `1` means invalid input, missing Terraform, failed plan/show, unreadable config, parse/load errors, or filtered `--fail-on` matches. |
 | Glob filters | Resource type and action filters support exact values plus wildcard patterns while preserving comma-separated CLI behavior. |
 | Dry-run short-circuit | `--dry-run` resolves and validates the input source, prints the command or file read that would happen, and exits before Terraform availability checks or plan loading. |
+| Completion short-circuit | `--completions` emits the requested shell script before config discovery so completions do not depend on project files. |
+| Fail-on guardrails | `--fail-on` is evaluated after include/exclude filters so CI policies apply to the same visible change set users reviewed. |
 | Tracing-based logging | The tracing subscriber keeps info-level rendered summaries on stdout, routes warnings/errors/debug diagnostics to stderr, and raises the max level from info to debug when verbose mode is used. |
 
 ## Dependencies
@@ -194,6 +209,7 @@ The project is intentionally kept as a single-file CLI for simplicity. As featur
 | Crate | Purpose |
 | --- | --- |
 | `clap` | Command-line parsing and help text generation. |
+| `clap_complete` | Shell completion generation for bash, elvish, fish, PowerShell, and zsh. |
 | `glob` | Wildcard pattern matching for include/exclude filters. |
 | `serde` | Derive macros for TOML and JSON deserialization plus JSON serialization. |
 | `serde_json` | Terraform JSON parsing and JSON output rendering. |
@@ -201,7 +217,7 @@ The project is intentionally kept as a single-file CLI for simplicity. As featur
 | `tracing` | Structured application logging macros. |
 | `tracing-subscriber` | Runtime log filtering and stdout/stderr formatting. |
 
-`src/requirements.txt` exists for documentation/reference only. Actual dependency management is via `Cargo.toml`.
+`Cargo.toml` is the canonical dependency manifest; `Cargo.lock` captures the resolved application dependency graph.
 
 ## Error Handling Strategy
 
@@ -238,7 +254,7 @@ The project is intentionally kept as a single-file CLI for simplicity. As featur
 - Add resource name, address, module path, or provider filters.
 - Add explicit config-generation or config-validation commands.
 - Validate Terraform version compatibility before live plan/show execution.
-- Add CI/CD-specific exit modes for create/update/delete policy decisions.
+- Add configurable policy presets for common CI/CD create/update/delete guardrails.
 
 ## Technology Stack
 
@@ -249,6 +265,7 @@ The project is intentionally kept as a single-file CLI for simplicity. As featur
 | Config Parsing | `toml` + `serde` |
 | JSON Parsing | `serde` + `serde_json` |
 | Filtering | `glob` |
+| Shell Completions | `clap_complete` |
 | Process Spawning | `std::process::Command` |
 | Logging | `tracing` + `tracing-subscriber` |
 | Target Platforms | Windows, macOS, Linux |

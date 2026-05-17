@@ -10,7 +10,9 @@ A lightweight Rust CLI tool that parses Terraform plan JSON output and displays 
 - **Dry-run mode** — preview the Terraform command or file read that would happen with `--dry-run` without executing Terraform
 - **Configurable logging** — keep default output focused on the final summary, or add `--verbose`/`-v` for debug diagnostics
 - **Flexible filtering** — narrow results with comma-separated exact or glob patterns such as `--include-type aws_*`, `--exclude-type *_bucket`, or `--include-action cre*`
-- **Optional project config** — persist output and filter defaults in `.terraform-plan-parser.toml`
+- **CI guardrails** — fail a pipeline when filtered plans include risky actions with `--fail-on delete`
+- **Shell completions** — generate completion scripts for bash, elvish, fish, PowerShell, or zsh with `--completions`
+- **Optional project config** — persist output, filter, and CI defaults in `.terraform-plan-parser.toml`
 - **Zero config by default** — just run it
 - **Cross-platform** — works on Windows, macOS, and Linux
 
@@ -88,6 +90,51 @@ terraform_plan_parser . --dry-run --verbose
 
 By default, the CLI keeps stdout focused on the final rendered summary. Verbose debug diagnostics are written to stderr so JSON/CSV stdout output stays script-friendly.
 
+Choose an output format when you need machine-readable output or aligned terminal tables:
+
+```bash
+terraform_plan_parser . --format text
+terraform_plan_parser . --format json
+terraform_plan_parser . --format csv
+terraform_plan_parser . --format table
+```
+
+Use `--no-emoji` when plain text output is preferred, or `--quiet`/`-q` to suppress the final action-count summary in text and table output:
+
+```bash
+terraform_plan_parser . --no-emoji
+terraform_plan_parser . --format table --quiet
+```
+
+Generate shell completions and write the script wherever your shell expects it:
+
+```bash
+terraform_plan_parser --completions bash > /etc/bash_completion.d/terraform_plan_parser
+terraform_plan_parser --completions zsh > _terraform_plan_parser
+```
+
+Supported completion shells are `bash`, `elvish`, `fish`, `powershell`, and `zsh`.
+
+## CLI reference
+
+| Option | Description |
+| --- | --- |
+| `[DIRECTORY]` | Terraform project directory or saved `.tfplan` file to inspect. Defaults to the current directory. |
+| `--plan-file PATH` | Read a pre-generated NDJSON/full JSON plan file, or convert a saved `.tfplan` file with `terraform show -json`. |
+| `--config PATH` | Read defaults from a specific `.terraform-plan-parser.toml` file instead of auto-discovering one. |
+| `--format text|json|csv|table` | Choose text, JSON, CSV, or aligned table output. |
+| `--no-emoji` | Render text/table summaries without emoji symbols. |
+| `--dry-run` | Validate the selected input and print the Terraform command or file read that would happen, without loading a plan. |
+| `--verbose`, `-v` | Enable debug diagnostics on stderr. |
+| `--quiet`, `-q` | Suppress the action summary line in text/table output. |
+| `--include-type GLOB[,GLOB]...` | Keep only resource types matching exact values or glob patterns. |
+| `--exclude-type GLOB[,GLOB]...` | Remove resource types matching exact values or glob patterns. |
+| `--include-action GLOB[,GLOB]...` | Keep only actions matching exact values or glob patterns. |
+| `--exclude-action GLOB[,GLOB]...` | Remove actions matching exact values or glob patterns. |
+| `--fail-on ACTION[,ACTION]...` | Exit non-zero when filtered results contain one of the listed actions. |
+| `--completions bash|elvish|fish|powershell|zsh` | Generate a shell completion script and exit. |
+| `--help`, `-h` | Print help text. |
+
 ## Filtering
 
 Filter flags accept comma-separated values. Exact matches remain supported, and each value may also be a glob pattern using wildcards such as `*` and `?`. Include filters are applied first, then matching exclude filters remove resources from the result.
@@ -113,6 +160,18 @@ Available filter flags:
 - `--include-action GLOB[,GLOB]...`
 - `--exclude-action GLOB[,GLOB]...`
 
+## CI guardrails
+
+Use `--fail-on ACTION[,ACTION]...` to make the command exit non-zero when the parsed, filtered plan still contains one of the listed actions. This is evaluated after include/exclude filters, which lets CI jobs block only the subset of changes they care about.
+
+```bash
+# Fail if any visible change deletes a resource
+terraform_plan_parser . --fail-on delete
+
+# Ignore data reads and fail on destructive replacement-style actions
+terraform_plan_parser . --exclude-action 'read,noop' --fail-on 'delete,replace'
+```
+
 ## Configuration file
 
 Add `.terraform-plan-parser.toml` to reuse defaults across local runs and CI jobs. The CLI discovers the file in the current directory or next to the selected input, and `--config PATH` can point at a specific file.
@@ -121,11 +180,14 @@ Add `.terraform-plan-parser.toml` to reuse defaults across local runs and CI job
 plan-file = "plan.ndjson"
 format = "csv"
 no-emoji = true
+dry-run = false
 verbose = false
+quiet = false
 include-type = ["aws_*"]
 exclude-type = ["*_bucket"]
 include-action = ["create", "update"]
 exclude-action = ["delete"]
+fail-on = ["delete"]
 ```
 
 CLI options override config defaults for `plan-file`, `format`, and filter lists. Boolean options are enabled when either the config value or CLI flag is true. Relative `plan-file` values are resolved from the config file directory.
