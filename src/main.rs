@@ -767,16 +767,16 @@ fn dedup_paths(paths: Vec<PathBuf>) -> Vec<PathBuf> {
 }
 
 fn resolve_include_action(cli: &Cli, config: &ConfigFile) -> Vec<String> {
-    if cli.only_delete {
+    if cli.only_delete || config.only_delete.unwrap_or(false) {
         return vec!["delete".to_string()];
     }
-    if cli.only_create {
+    if cli.only_create || config.only_create.unwrap_or(false) {
         return vec!["create".to_string()];
     }
-    if cli.only_update {
+    if cli.only_update || config.only_update.unwrap_or(false) {
         return vec!["update".to_string()];
     }
-    if cli.only_replace {
+    if cli.only_replace || config.only_replace.unwrap_or(false) {
         return vec!["replace".to_string()];
     }
     cli_or_config_values(&cli.include_action, config.include_action.clone())
@@ -805,7 +805,6 @@ fn app_settings(cli: &Cli, config: ConfigFile, config_path: Option<&Path>) -> Ap
         fail_on: cli_or_config_values(&cli.fail_on, config.fail_on),
         github_summary: cli.github_summary || config.github_summary.unwrap_or(false),
         sort_by: cli.sort_by.or(config.sort_by),
-        only_replace: cli.only_replace || config.only_replace.unwrap_or(false),
     }
 }
 
@@ -1165,7 +1164,7 @@ mod tests {
     use super::{
         app_settings, append_github_step_summary, count_actions, csv_escape, filter_changes,
         has_fail_on_actions, parse_plan_output, render_csv, render_dry_run,
-        render_github_step_summary, render_summary_line, render_table, render_text,
+        render_github_step_summary, render_json, render_summary_line, render_table, render_text,
         sort_resource_changes, ChangeCounts, Cli, ConfigFile, Format, ResourceChange, SortBy,
         TerraformInput,
     };
@@ -1604,6 +1603,26 @@ not-json
         assert!(output.contains("create"));
         assert!(output.contains("Summary:"));
         assert!(output.contains("+ 1 to create"));
+    }
+
+    #[test]
+    fn render_json_serializes_resource_changes() {
+        let changes = vec![
+            ResourceChange {
+                resource_type: "aws_instance".to_string(),
+                resource_name: "web".to_string(),
+                action: "create".to_string(),
+            },
+            ResourceChange {
+                resource_type: "aws_s3_bucket".to_string(),
+                resource_name: "logs".to_string(),
+                action: "delete".to_string(),
+            },
+        ];
+        let output = render_json(&changes);
+        assert!(output.contains(r#""resource_type": "aws_instance""#));
+        assert!(output.contains(r#""action": "create""#));
+        assert!(output.contains(r#""action": "delete""#));
     }
 
     #[test]
