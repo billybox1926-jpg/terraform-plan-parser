@@ -330,9 +330,6 @@ fn count_actions(resource_changes: &[ResourceChange]) -> ChangeCounts {
     counts
 }
 
-fn render_summary_line(counts: &ChangeCounts) -> String {
-    format!(
-        "{} to create, {} to update, {} to delete\n",
 fn summary_action_symbols(no_emoji: bool) -> (&'static str, &'static str, &'static str) {
     if no_emoji {
         ("+", "~", "-")
@@ -361,7 +358,6 @@ fn render_changes(
         Format::Text => render_text(resource_changes, abs_path, no_emoji, quiet, &counts),
         Format::Json => render_json(resource_changes),
         Format::Csv => render_csv(resource_changes),
-        Format::Table => render_table(resource_changes, abs_path, quiet, &counts),
         Format::Table => render_table(resource_changes, abs_path, no_emoji, quiet, &counts),
     }
 }
@@ -382,7 +378,6 @@ fn render_text(
             abs_path.display()
         ));
         if !quiet {
-            output.push_str(&render_summary_line(counts));
             output.push_str(&render_summary_line(counts, no_emoji));
         }
         return output;
@@ -418,7 +413,6 @@ fn render_text(
         ));
     }
     if !quiet {
-        output.push_str(&render_summary_line(counts));
         output.push_str(&render_summary_line(counts, no_emoji));
     }
     output
@@ -457,7 +451,6 @@ fn render_table(
             abs_path.display()
         );
         if !quiet {
-            output.push_str(&render_summary_line(counts));
             output.push_str(&render_summary_line(counts, no_emoji));
         }
         return output;
@@ -500,7 +493,6 @@ fn render_table(
     }
 
     if !quiet {
-        output.push_str(&render_summary_line(counts));
         output.push_str(&render_summary_line(counts, no_emoji));
     }
 
@@ -938,8 +930,6 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::{
-        app_settings, csv_escape, filter_changes, parse_plan_output, render_csv, render_dry_run,
-        render_table, render_text, Cli, ConfigFile, Format, ResourceChange, TerraformInput,
         app_settings, count_actions, csv_escape, filter_changes, parse_plan_output, render_csv,
         render_dry_run, render_summary_line, render_table, render_text, ChangeCounts, Cli,
         ConfigFile, Format, ResourceChange, TerraformInput,
@@ -1246,8 +1236,6 @@ not-json
             }
         );
         assert_eq!(
-            render_summary_line(&count_actions(&changes)),
-            "2 to create, 1 to update, 1 to delete\n"
             render_summary_line(&count_actions(&changes), true),
             "Summary:\n  + 2 to create\n  ~ 1 to update\n  - 1 to delete\n"
         );
@@ -1271,7 +1259,6 @@ not-json
         let output = render_text(&changes, Path::new("/tmp/project"), true, false, &counts);
 
         assert!(output.contains("aws_instance"));
-        assert!(output.contains("1 to create, 1 to update, 0 to delete"));
         assert!(output.contains("Summary:"));
         assert!(output.contains("+ 1 to create"));
         assert!(output.contains("~ 1 to update"));
@@ -1300,13 +1287,11 @@ not-json
             action: "create".to_string(),
         }];
         let counts = count_actions(&changes);
-        let output = render_table(&changes, Path::new("/tmp/project"), false, &counts);
         let output = render_table(&changes, Path::new("/tmp/project"), true, false, &counts);
 
         assert!(output.contains("Resource Type"));
         assert!(output.contains("aws_instance"));
         assert!(output.contains("create"));
-        assert!(output.contains("1 to create, 0 to update, 0 to delete"));
         assert!(output.contains("Summary:"));
         assert!(output.contains("+ 1 to create"));
     }

@@ -334,6 +334,7 @@ exclude-action = ["delete"]
 
     fs::remove_dir_all(root).expect("remove temp dir");
 }
+
 #[test]
 fn filters_only_create_actions() {
     let root = temp_dir("filter_create_actions");
@@ -382,10 +383,6 @@ const MIXED_ACTIONS_PLAN: &str = r#"{"@level":"info","change":{"resource":{"reso
 #[test]
 fn filters_only_delete_actions() {
     let root = temp_dir("filter_delete_actions");
-fn filters_only_update_actions() {
-    let root = temp_dir("filter_update_actions");
-fn excludes_actions_even_when_included() {
-    let root = temp_dir("filter_exclude_actions");
     let plan_file = root.join("plan.ndjson");
 
     fs::write(&plan_file, MIXED_ACTIONS_PLAN).expect("write plan fixture");
@@ -398,9 +395,6 @@ fn excludes_actions_even_when_included() {
         .arg("--format")
         .arg("csv")
         .arg("--include-action")
-        .arg("update")
-        .arg("create,update,delete")
-        .arg("--exclude-action")
         .arg("delete")
         .env("PATH", "")
         .output()
@@ -416,7 +410,68 @@ fn excludes_actions_even_when_included() {
         "resource_type,resource_name,action\naws_rds_cluster,db,delete\n"
     );
 
+    fs::remove_dir_all(root).expect("remove temp dir");
+}
+
+#[test]
+fn filters_only_update_actions() {
+    let root = temp_dir("filter_update_actions");
+    let plan_file = root.join("plan.ndjson");
+
+    fs::write(&plan_file, MIXED_ACTIONS_PLAN).expect("write plan fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_terraform_plan_parser"))
+        .arg(".")
+        .current_dir(&root)
+        .arg("--plan-file")
+        .arg("plan.ndjson")
+        .arg("--format")
+        .arg("csv")
+        .arg("--include-action")
+        .arg("update")
+        .env("PATH", "")
+        .output()
+        .expect("run terraform_plan_parser");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
         "resource_type,resource_name,action\naws_s3_bucket,logs,update\n"
+    );
+
+    fs::remove_dir_all(root).expect("remove temp dir");
+}
+
+#[test]
+fn excludes_actions_even_when_included() {
+    let root = temp_dir("filter_exclude_actions");
+    let plan_file = root.join("plan.ndjson");
+
+    fs::write(&plan_file, MIXED_ACTIONS_PLAN).expect("write plan fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_terraform_plan_parser"))
+        .arg(".")
+        .current_dir(&root)
+        .arg("--plan-file")
+        .arg("plan.ndjson")
+        .arg("--format")
+        .arg("csv")
+        .arg("--include-action")
+        .arg("create,update,delete")
+        .arg("--exclude-action")
+        .arg("delete")
+        .env("PATH", "")
+        .output()
+        .expect("run terraform_plan_parser");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
     );
 
     let stdout = String::from_utf8_lossy(&output.stdout);
