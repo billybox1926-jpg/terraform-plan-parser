@@ -508,3 +508,33 @@ fn csv_no_header_omits_header_row() {
     assert!(stdout.contains("aws_instance"));
     fs::remove_dir_all(root).expect("remove temp dir");
 }
+
+#[test]
+fn sort_by_type_orders_csv_output() {
+    let root = temp_dir("sort_by_type");
+    let plan_file = root.join("plan.ndjson");
+    fs::write(&plan_file, MIXED_ACTIONS_PLAN).expect("write plan fixture");
+    let output = Command::new(env!("CARGO_BIN_EXE_terraform_plan_parser"))
+        .arg(".")
+        .current_dir(&root)
+        .arg("--plan-file")
+        .arg("plan.ndjson")
+        .arg("--format")
+        .arg("csv")
+        .arg("--sort-by")
+        .arg("type")
+        .env("PATH", "")
+        .output()
+        .expect("run terraform_plan_parser");
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let instance_pos = stdout.find("aws_instance").expect("instance row");
+    let bucket_pos = stdout.find("aws_s3_bucket").expect("bucket row");
+    assert!(instance_pos < bucket_pos);
+    fs::remove_dir_all(root).expect("remove temp dir");
+}
+

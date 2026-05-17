@@ -132,6 +132,9 @@ struct Cli {
     /// variable is present; pass this flag to require an explicit opt-in.
     #[arg(long)]
     github_summary: bool,
+    /// Sort resource changes before rendering (default: plan file order).
+    #[arg(long, value_enum)]
+    sort_by: Option<SortBy>,
     /// Generate shell completion scripts for the given shell, then exit.
     #[arg(long, value_enum, value_name = "SHELL")]
     completions: Option<Shell>,
@@ -144,6 +147,14 @@ enum Format {
     Json,
     Csv,
     Table,
+}
+
+#[derive(clap::ValueEnum, Clone, Copy, Debug, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+enum SortBy {
+    Type,
+    Name,
+    Action,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -162,6 +173,7 @@ struct ConfigFile {
     exclude_action: Vec<String>,
     fail_on: Vec<String>,
     github_summary: Option<bool>,
+    sort_by: Option<SortBy>,
 }
 
 #[derive(Debug)]
@@ -179,6 +191,7 @@ struct AppSettings {
     exclude_action: Vec<String>,
     fail_on: Vec<String>,
     github_summary: bool,
+    sort_by: Option<SortBy>,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize)]
@@ -333,6 +346,30 @@ fn matches_filter(value: &str, include: &[String], exclude: &[String]) -> bool {
 fn matches_pattern(value: &str, pattern: &str) -> bool {
     Pattern::new(pattern).map_or_else(|_| pattern == value, |glob| glob.matches(value))
 }
+
+fn sort_resource_changes(changes: &mut [ResourceChange], sort_by: Option<SortBy>) {
+    let Some(sort_by) = sort_by else {
+        return;
+    };
+    changes.sort_by(|left, right| match sort_by {
+        SortBy::Type => left
+            .resource_type
+            .cmp(&right.resource_type)
+            .then_with(|| left.resource_name.cmp(&right.resource_name))
+            .then_with(|| left.action.cmp(&right.action)),
+        SortBy::Name => left
+            .resource_name
+            .cmp(&right.resource_name)
+            .then_with(|| left.resource_type.cmp(&right.resource_type))
+            .then_with(|| left.action.cmp(&right.action)),
+        SortBy::Action => left
+            .action
+            .cmp(&right.action)
+            .then_with(|| left.resource_type.cmp(&right.resource_type))
+            .then_with(|| left.resource_name.cmp(&right.resource_name)),
+    });
+}
+
 
 #[derive(Debug, Default, PartialEq, Eq)]
 struct ChangeCounts {
@@ -728,6 +765,7 @@ fn app_settings(cli: &Cli, config: ConfigFile, config_path: Option<&Path>) -> Ap
         exclude_action: cli_or_config_values(&cli.exclude_action, config.exclude_action),
         fail_on: cli_or_config_values(&cli.fail_on, config.fail_on),
         github_summary: cli.github_summary || config.github_summary.unwrap_or(false),
+        sort_by: cli.sort_by.or(config.sort_by),
     }
 }
 
@@ -1051,7 +1089,8 @@ fn main() {
         tracing::error!("{error}");
         std::process::exit(1);
     });
-    let resource_changes = filter_changes(resource_changes, &settings);
+    let mut resource_changes = filter_changes(resource_changes, &settings);
+    sort_resource_changes(&mut resource_changes, settings.sort_by);
     let stdin_display_path = Path::new("<stdin>");
     let display_path = match &input {
         TerraformInput::StdinJson(_) => stdin_display_path,
@@ -1087,8 +1126,9 @@ mod tests {
     use super::{
         app_settings, append_github_step_summary, count_actions, csv_escape, filter_changes,
         has_fail_on_actions, parse_plan_output, render_csv, render_dry_run,
-        render_github_step_summary, render_summary_line, render_table, render_text, ChangeCounts,
-        Cli, ConfigFile, Format, ResourceChange, TerraformInput,
+        render_github_step_summary, render_summary_line, render_table, render_text,
+        sort_resource_changes, ChangeCounts, Cli, ConfigFile, Format, ResourceChange, SortBy,
+        TerraformInput,
     };
     use clap::Parser;
     use std::path::Path;
@@ -1525,6 +1565,26 @@ not-json
         assert!(output.contains("create"));
         assert!(output.contains("Summary:"));
         assert!(output.contains("+ 1 to create"));
+    }
+
+    #[test]
+    #[test]
+    fn sorts_resource_changes_by_type() {
+        let mut changes = vec![
+            ResourceChange {
+                resource_type: "aws_s3_bucket".to_string(),
+                resource_name: "logs".to_string(),
+                action: "update".to_string(),
+            },
+            ResourceChange {
+                resource_type: "aws_instance".to_string(),
+                resource_name: "web".to_string(),
+                action: "create".to_string(),
+            },
+        ];
+        sort_resource_changes(&mut changes, Some(SortBy::Type));
+        assert_eq!(changes[0].resource_type, "aws_instance");
+        assert_eq!(changes[1].resource_type, "aws_s3_bucket");
     }
 
     #[test]
