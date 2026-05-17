@@ -52,7 +52,19 @@ impl std::io::Write for OutputWriter {
 }
 
 #[derive(Parser)]
-#[command(name = "terraform_plan_parser")]
+#[command(
+    name = "terraform_plan_parser",
+    after_help = r#"EXAMPLES:
+  # Parse a saved JSON plan file
+  terraform_plan_parser . --plan-file plan.ndjson --format csv
+
+  # Read plan JSON from stdin
+  cat plan.ndjson | terraform_plan_parser . --format table
+
+  # Filter to create actions only
+  terraform_plan_parser . --plan-file plan.ndjson --include-action create
+"#
+)]
 struct Cli {
     /// Terraform project directory or saved .tfplan file to inspect.
     #[arg(default_value = ".")]
