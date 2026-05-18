@@ -1,0 +1,82 @@
+name: Documentation task
+description: Improve README, examples, wiki guidance, architecture notes, or contributor docs.
+title: "docs: "
+labels:
+  - documentation
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for documentation work. Keep canonical source boundaries in mind so README, architecture notes, contributing docs, roadmap, and wiki pages do not drift into duplicate sources of truth.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What documentation needs to be added, updated, or clarified?
+      placeholder: Update the README to explain...
+    validations:
+      required: true
+
+  - type: textarea
+    id: audience
+    attributes:
+      label: Audience
+      description: Who needs this documentation?
+      placeholder: New users, contributors, maintainers, CI users, release users, etc.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Documentation surface
+      description: Where should this information live?
+      multiple: true
+      options:
+        - README.md
+        - ARCHITECTURE.md
+        - CONTRIBUTING.md
+        - ROADMAP.md
+        - docs/
+        - GitHub Wiki
+        - GitHub Issues
+        - examples/
+    validations:
+      required: true
+
+  - type: textarea
+    id: canonical
+    attributes:
+      label: Canonical source check
+      description: Explain why this information belongs in the selected surface instead of another doc.
+      placeholder: This belongs in README because...
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: What must be true before this docs issue can be closed?
+      value: |
+        - [ ] The target documentation is updated.
+        - [ ] Duplicate or stale content is removed or linked to the canonical source.
+        - [ ] Examples are accurate and copy/pasteable where applicable.
+        - [ ] Related docs are linked where helpful.
+    validations:
+      required: true
+
+  - type: textarea
+    id: relationships
+    attributes:
+      label: Relationships
+      description: List dependencies or blocked issues if relevant. Mirror these relationships in related issues.
+      value: |
+        ## Depends on
+        - None currently.
+
+        ## Blocks
+        - None currently.
+    validations:
+      required: false
