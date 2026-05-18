@@ -1,0 +1,92 @@
+name: Feature request
+description: Propose a new capability or user-facing workflow.
+title: "feat: "
+labels:
+  - feature
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template for new capabilities. Keep the scope focused enough that one pull request can close or meaningfully advance the issue.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What should be added?
+      placeholder: Add support for...
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What user need, CI workflow, or maintainer workflow does this solve?
+      placeholder: This helps users because...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: Describe the likely command, behavior, data flow, or implementation shape.
+      placeholder: |
+        Proposed command:
+        ```bash
+        terraform_plan_parser ...
+        ```
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: What must be true before this feature can be closed?
+      value: |
+        - [ ] User-facing behavior is implemented.
+        - [ ] Tests cover the new behavior.
+        - [ ] README or examples are updated if needed.
+        - [ ] Machine-readable output remains stable if output is affected.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area labels to consider
+      description: Maintainers should apply the matching area labels after triage.
+      multiple: true
+      options:
+        - ci
+        - infra
+        - output
+        - advanced
+        - documentation
+    validations:
+      required: false
+
+  - type: textarea
+    id: relationships
+    attributes:
+      label: Relationships
+      description: List dependencies or blocked issues if relevant. Mirror these relationships in related issues.
+      value: |
+        ## Depends on
+        - None currently.
+
+        ## Blocks
+        - None currently.
+    validations:
+      required: false
+
+  - type: textarea
+    id: completion
+    attributes:
+      label: Completion unlocks
+      description: What becomes possible after this closes?
+      placeholder: This unlocks...
+    validations:
+      required: false
