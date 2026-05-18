@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Project management guide
+    url: https://github.com/billybox1926-jpg/terraform-plan-parser/blob/main/docs/MAINTAINER_WORKFLOW.md
+    about: Learn how issues are triaged, labeled, scoped, and closed.
+  - name: Label taxonomy
+    url: https://github.com/billybox1926-jpg/terraform-plan-parser/blob/main/docs/ISSUE_LABELS.md
+    about: Understand what each issue label means and when to use it.
