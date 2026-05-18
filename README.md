@@ -198,6 +198,15 @@ fail-on = ["delete"]
 
 CLI options override config defaults for `plan-file`, `format`, and filter lists. Boolean options are enabled when either the config value or CLI flag is true. Relative `plan-file` values are resolved from the config file directory.
 
+## Project management
+
+This repo treats issues as an active project-management layer. Issue templates, mirrored dependency notes, label taxonomy, and maintainer workflow guidance keep the tracker readable for contributors and future maintainers.
+
+- [Maintainer Workflow](docs/MAINTAINER_WORKFLOW.md) explains issue intake, triage, dependency mirroring, milestones, pull requests, and closing standards.
+- [Issue Label Taxonomy](docs/ISSUE_LABELS.md) documents the label system and recommended label combinations.
+- [Contributing](CONTRIBUTING.md) covers local checks and collaboration expectations.
+- [Roadmap](ROADMAP.md) tracks completed and planned capability areas.
+
 ## Architecture
 
 See the canonical [Architecture Notes](ARCHITECTURE.md) for system architecture, configuration flow, data flow, design decisions, and future extension points.
