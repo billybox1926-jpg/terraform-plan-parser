@@ -1,0 +1,87 @@
+name: Bug report
+description: Report incorrect, broken, or surprising behavior.
+title: "bug: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Clear reproduction steps help keep fixes small, testable, and safe.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is broken or surprising?
+      placeholder: The CLI currently...
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Provide the smallest command, input file, or scenario that shows the issue.
+      placeholder: |
+        1. Run `terraform_plan_parser ...`
+        2. Observe ...
+        3. Expected ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should happen instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happened? Include error output when safe to share.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include OS, Rust version, Terraform version, and CLI version/commit if known.
+      placeholder: |
+        - OS:
+        - Rust:
+        - Terraform:
+        - terraform-plan-parser commit/version:
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: What must be true before this bug can be closed?
+      value: |
+        - [ ] Reproduction added or documented.
+        - [ ] Root cause identified.
+        - [ ] Fix implemented.
+        - [ ] Regression test added where practical.
+    validations:
+      required: true
+
+  - type: textarea
+    id: relationships
+    attributes:
+      label: Relationships
+      description: List dependencies or blocked issues if relevant. Keep mirrored relationships updated.
+      value: |
+        ## Depends on
+        - None currently.
+
+        ## Blocks
+        - None currently.
+    validations:
+      required: false
