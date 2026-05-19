@@ -1,0 +1,69 @@
+{
+  "project": "terraform-plan-parser",
+  "current_status": {
+    "typed_parser": "done",
+    "clap_cli": "done",
+    "unit_tests": "done",
+    "output_formats": "done",
+    "plan_file_input": "done",
+    "saved_tfplan_input": "done",
+    "glob_filters": "done",
+    "config_file": "done",
+    "dry_run": "done",
+    "verbose_logging": "done",
+    "quiet_output": "done",
+    "fail_on_guardrails": "done",
+    "shell_completions": "done",
+    "gitignore": "done",
+    "docs": "done"
+  },
+  "maintenance_checks": [
+    "cargo fmt --check",
+    "cargo clippy --all-targets --all-features -- -D warnings",
+    "cargo test",
+    "cargo +nightly udeps --all-targets",
+    "cargo update"
+  ],
+  "future_tasks": [
+    {
+      "id": 1,
+      "priority": "medium",
+      "title": "Split the single-file CLI into modules",
+      "description": "Move CLI/config, Terraform process execution, parsing, filtering, and rendering into focused modules once feature growth justifies the extra structure.",
+      "scope": "src/"
+    },
+    {
+      "id": 2,
+      "priority": "medium",
+      "title": "Add additional selectors",
+      "description": "Support resource name, address, module path, or provider filters in addition to the existing type/action include and exclude filters.",
+      "scope": "src/main.rs + tests/"
+    },
+    {
+      "id": 3,
+      "priority": "low",
+      "title": "Add config helper commands",
+      "description": "Add explicit config generation or validation commands for .terraform-plan-parser.toml files.",
+      "scope": "src/main.rs + README.md"
+    },
+    {
+      "id": 4,
+      "priority": "low",
+      "title": "Validate Terraform version compatibility",
+      "description": "Check the installed Terraform version before live plan/show execution and report unsupported versions clearly.",
+      "scope": "src/main.rs + tests/"
+    },
+    {
+      "id": 5,
+      "priority": "low",
+      "title": "Add CI policy presets",
+      "description": "Offer named policy presets for common create/update/delete guardrails on top of the existing --fail-on flag.",
+      "scope": "src/main.rs + README.md"
+    }
+  ],
+  "notes": [
+    "Cargo.toml is the canonical dependency manifest; Cargo.lock records the resolved binary dependency graph.",
+    "Keep README.md and docs/ARCHITECTURE.md aligned with cargo run -- --help whenever CLI flags change.",
+    "Run the maintenance checks before committing user-facing changes."
+  ]
+}
