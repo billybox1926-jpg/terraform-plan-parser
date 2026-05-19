@@ -4,7 +4,7 @@
 
 `terraform-plan-parser` is a single-binary Rust CLI tool that wraps `terraform plan -json` or reads pre-generated Terraform plan files, parses Terraform JSON output, optionally filters the resulting changes, and renders the summary as text, JSON, CSV, or a plain table.
 
-This root-level `ARCHITECTURE.md` is the canonical architecture document for the project.
+`docs/ARCHITECTURE.md` is the canonical architecture document for the project.
 
 ## System Architecture
 

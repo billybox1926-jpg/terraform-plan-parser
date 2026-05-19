@@ -1,5 +1,11 @@
 {
   "project": "terraform-plan-parser",
+  "purpose": "Lightweight maintenance notes and future-task ideas that are not yet formal GitHub issues.",
+  "usage_guidance": {
+    "keep_lightweight": true,
+    "source_of_truth": "GitHub Issues are the source of truth for active scoped work, acceptance criteria, labels, dependencies, and milestones.",
+    "promotion_rule": "When a suggestion becomes actionable, convert it into a GitHub issue instead of expanding this file into a second issue tracker."
+  },
   "current_status": {
     "typed_parser": "done",
     "clap_cli": "done",
@@ -64,6 +70,7 @@
   "notes": [
     "Cargo.toml is the canonical dependency manifest; Cargo.lock records the resolved binary dependency graph.",
     "Keep README.md and docs/ARCHITECTURE.md aligned with cargo run -- --help whenever CLI flags change.",
-    "Run the maintenance checks before committing user-facing changes."
+    "Run the maintenance checks before committing user-facing changes.",
+    "Promote actionable future tasks into GitHub Issues before assigning labels, dependencies, milestones, or acceptance criteria."
   ]
 }

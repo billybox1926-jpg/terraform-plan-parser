@@ -1,44 +1,85 @@
 # Roadmap — terraform-plan-parser
 
-## High Priority
+This roadmap summarizes completed foundations, current release-readiness priorities, near-term improvements, and longer-term expansion ideas. GitHub Issues remain the source of truth for active scoped work, acceptance criteria, dependencies, labels, and milestones.
+
+## Completed foundations
+
+These items form the current stable base of the project.
 
 - [x] Add proper CLI argument parsing with clap
-  - Replaced manual `std::env::args()` with clap derive parsing.
-  - Added flags: `--format`, `--dry-run`, `--verbose`, `--include-action`, `--exclude-action`, `--fail-on`, `--completions`, and `--plan-file`.
+  - Replaced manual `std::env::args()` handling with clap derive parsing.
+  - Added flags for format selection, dry runs, verbosity, filters, `--fail-on`, shell completions, and plan-file input.
 - [x] Add a comprehensive `.gitignore`
-  - Rust: `/target`, `**/*.rs.bk`.
-  - Terraform: `*.tfstate`, `*.tfstate.*`, `.terraform/`, `.terraform.lock.hcl`.
+  - Covers Rust build output and Terraform local state/artifact files.
 - [x] Add GitHub Actions CI/CD
-  - `.github/workflows/ci.yml`.
-  - Run `cargo build`, `cargo test`, `cargo fmt --check`, and `cargo clippy`.
-  - Trigger on push and PR to `main`.
-
-## Medium Priority
-
+  - Runs formatting, clippy, tests, build, and hidden/bidirectional Unicode scanning on pushes and pull requests.
 - [x] Add structured output formats
-  - `--format json` for CI/CD integration.
-  - `--format csv` for spreadsheet/reporting.
-  - Keep current emoji text as default table format.
+  - Supports text, JSON, CSV, and table output for local review and CI/reporting workflows.
 - [x] Add unit and integration tests
-  - Unit tests for JSON parsing logic.
-  - Integration tests with `--dry-run` and `--plan-file` to avoid needing real Terraform.
-
-## Low Priority / Completed
-
+  - Covers parsing behavior and CLI flows that can run without a real Terraform project.
 - [x] Support saved `.tfplan` files
-  - `--plan-file plan.tfplan` instead of live `terraform plan -json`.
-  - Useful for CI pipelines where plan is generated in a previous step.
+  - Converts saved Terraform plans through `terraform show -json` when needed.
 - [x] Add logging/tracing
-  - Replaced `println!`/`eprintln!` diagnostics with tracing output.
-  - Configurable via `--verbose` flag for debug-level output.
+  - Uses tracing for diagnostics while preserving clean stdout for machine-readable formats.
 - [x] Add filtering capabilities
-  - `--include-type` and `--exclude-type` with glob support, for example `aws_*`.
-  - `--include-action` and `--exclude-action`, for example `create` or `delete`.
+  - Supports include/exclude filters for resource types and actions with glob matching.
 - [x] Add configuration file support
-  - `.terraform-plan-parser.toml` for persistent filters and defaults.
+  - Supports `.terraform-plan-parser.toml` for reusable defaults.
 - [x] Add CI guardrails
-  - `--fail-on` exits non-zero when filtered plans contain blocked actions.
+  - Supports `--fail-on` so pipelines can fail on blocked actions after filtering.
 - [x] Add shell completions
-  - `--completions` generates bash, elvish, fish, PowerShell, or zsh scripts.
-- [x] Consolidate architecture docs
-  - Merged `ARCHITECTURE.md` and `docs/architecture.md` into root `ARCHITECTURE.md` as the canonical doc.
+  - Generates completion scripts for bash, elvish, fish, PowerShell, and zsh.
+- [x] Consolidate documentation under `docs/`
+  - Keeps the root README as the public landing page and stores support docs under `docs/`, including `docs/ARCHITECTURE.md` as the canonical architecture document.
+
+## Current priorities
+
+These items should be addressed before broader release/distribution work.
+
+- [ ] Fix replacement summary-count edge case
+  - Ensure Terraform `create/delete` replacements are counted consistently with `delete/create` replacements.
+  - Tracked by #82.
+- [ ] Complete configuration documentation
+  - Document every supported `.terraform-plan-parser.toml` key and add a copy/pasteable example config file.
+  - Tracked by #74.
+- [ ] Expand contributor onboarding
+  - Add a first-time contributor quickstart and keep local check instructions aligned with CI.
+  - Tracked by #83.
+- [ ] Align GitHub Wiki with canonical repository docs
+  - Keep the wiki as an operations/navigation surface that links back to README and `docs/` instead of duplicating detailed reference content.
+  - Tracked by #79.
+
+## Next
+
+These items become stronger candidates after the current release-readiness issues are resolved.
+
+- [ ] Add `--output-file` support
+  - Enables CI artifact workflows and downstream comparison/reporting features.
+  - Tracked by #17.
+- [ ] Add cross-platform release binaries
+  - Build tagged release artifacts for Linux, macOS, and Windows with checksums.
+  - Tracked by #24.
+- [ ] Add Homebrew formula support
+  - Provides a polished installation path for macOS users after release binaries exist.
+  - Tracked by #25.
+- [ ] Split the single-file CLI into focused modules
+  - Move CLI/config, Terraform execution, parsing, filtering, and rendering into focused modules once feature growth justifies the added structure.
+
+## Later
+
+These are larger expansion ideas that need stable foundations first.
+
+- [ ] Implement plan diffing between two plan files
+  - Compare two parsed plans and render added, removed, or changed resources.
+  - Tracked by #26.
+- [ ] Add support for parsing Terraform state files
+  - Build toward inventory, drift-analysis, and reporting workflows.
+  - Tracked by #27.
+- [ ] Add additional selectors
+  - Support resource name, address, module path, or provider filters.
+- [ ] Add config helper commands
+  - Provide config generation or validation commands for `.terraform-plan-parser.toml`.
+- [ ] Validate Terraform version compatibility
+  - Detect unsupported Terraform versions before live plan/show execution.
+- [ ] Add CI policy presets
+  - Provide named guardrail presets on top of the existing `--fail-on` flag.
