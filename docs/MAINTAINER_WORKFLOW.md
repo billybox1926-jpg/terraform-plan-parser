@@ -14,6 +14,7 @@ Use each project surface for a clear purpose:
 | `docs/ROADMAP.md` | Broad project direction and completed/planned capability areas. |
 | `docs/ISSUE_LABELS.md` | Label taxonomy and triage checklist. |
 | `docs/MAINTAINER_WORKFLOW.md` | Issue lifecycle, dependency mirroring, milestones, PR review, and closing standards. |
+| `docs/suggestions.json` | Lightweight maintenance notes and future-task ideas that have not yet become formal issues. |
 | GitHub Issues | Active work tracking, scoping, acceptance criteria, and dependencies. |
 | GitHub Wiki | Lightweight operations handbook and contributor/maintainer navigation. |
 
