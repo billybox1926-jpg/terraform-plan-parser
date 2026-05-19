@@ -1,6 +1,12 @@
-# terraform-plan-parser
+# Terraform Plan Parser
 
-A lightweight Rust CLI tool that parses Terraform plan JSON output and displays a clean, human-readable summary of planned resource changes.
+[![CI](https://github.com/billybox1926-jpg/terraform-plan-parser/actions/workflows/ci.yml/badge.svg)](https://github.com/billybox1926-jpg/terraform-plan-parser/actions/workflows/ci.yml)
+![Rust](https://img.shields.io/badge/Rust-2021-orange)
+![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
+
+A lightweight Rust CLI that turns Terraform plan JSON into clean summaries for local reviews, CI logs, and release guardrails.
+
+`terraform-plan-parser` reads live Terraform plans, piped JSON, pre-generated JSON/NDJSON files, or saved `.tfplan` files, then renders the planned resource changes as human-readable text, JSON, CSV, or an aligned terminal table.
 
 ## Features
 
@@ -206,6 +212,7 @@ This repo treats issues as an active project-management layer. Issue templates, 
 - [Issue Label Taxonomy](docs/ISSUE_LABELS.md) documents the label system and recommended label combinations.
 - [Contributing](docs/CONTRIBUTING.md) covers local checks and collaboration expectations.
 - [Roadmap](docs/ROADMAP.md) tracks completed and planned capability areas.
+- [Suggestions](docs/suggestions.json) tracks lightweight maintenance notes and future-task ideas.
 
 ## Architecture
 
