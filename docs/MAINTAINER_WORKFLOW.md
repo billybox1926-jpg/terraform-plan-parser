@@ -8,10 +8,12 @@ Use each project surface for a clear purpose:
 
 | Surface | Purpose |
 | --- | --- |
-| `README.md` | User quickstart, installation, CLI usage, and examples. |
-| `ARCHITECTURE.md` | Technical design, data flow, and implementation decisions. |
-| `CONTRIBUTING.md` | Contributor setup, checks, and collaboration expectations. |
-| `ROADMAP.md` | Broad project direction and completed/planned capability areas. |
+| `README.md` | Root landing page, user quickstart, installation, CLI usage, and examples. |
+| `docs/ARCHITECTURE.md` | Technical design, data flow, and implementation decisions. |
+| `docs/CONTRIBUTING.md` | Contributor setup, checks, and collaboration expectations. |
+| `docs/ROADMAP.md` | Broad project direction and completed/planned capability areas. |
+| `docs/ISSUE_LABELS.md` | Label taxonomy and triage checklist. |
+| `docs/MAINTAINER_WORKFLOW.md` | Issue lifecycle, dependency mirroring, milestones, PR review, and closing standards. |
 | GitHub Issues | Active work tracking, scoping, acceptance criteria, and dependencies. |
 | GitHub Wiki | Lightweight operations handbook and contributor/maintainer navigation. |
 

@@ -204,9 +204,9 @@ This repo treats issues as an active project-management layer. Issue templates, 
 
 - [Maintainer Workflow](docs/MAINTAINER_WORKFLOW.md) explains issue intake, triage, dependency mirroring, milestones, pull requests, and closing standards.
 - [Issue Label Taxonomy](docs/ISSUE_LABELS.md) documents the label system and recommended label combinations.
-- [Contributing](CONTRIBUTING.md) covers local checks and collaboration expectations.
-- [Roadmap](ROADMAP.md) tracks completed and planned capability areas.
+- [Contributing](docs/CONTRIBUTING.md) covers local checks and collaboration expectations.
+- [Roadmap](docs/ROADMAP.md) tracks completed and planned capability areas.
 
 ## Architecture
 
-See the canonical [Architecture Notes](ARCHITECTURE.md) for system architecture, configuration flow, data flow, design decisions, and future extension points.
+See the canonical [Architecture Notes](docs/ARCHITECTURE.md) for system architecture, configuration flow, data flow, design decisions, and future extension points.

@@ -7,7 +7,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Use this template for documentation work. Keep canonical source boundaries in mind so README, architecture notes, contributing docs, roadmap, and wiki pages do not drift into duplicate sources of truth.
+        Use this template for documentation work. Keep canonical source boundaries in mind so README, docs, and wiki pages do not drift into duplicate sources of truth.
 
   - type: textarea
     id: summary
@@ -35,9 +35,11 @@ body:
       multiple: true
       options:
         - README.md
-        - ARCHITECTURE.md
-        - CONTRIBUTING.md
-        - ROADMAP.md
+        - docs/ARCHITECTURE.md
+        - docs/CONTRIBUTING.md
+        - docs/ROADMAP.md
+        - docs/ISSUE_LABELS.md
+        - docs/MAINTAINER_WORKFLOW.md
         - docs/
         - GitHub Wiki
         - GitHub Issues
