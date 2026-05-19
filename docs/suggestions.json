@@ -63,7 +63,7 @@
   ],
   "notes": [
     "Cargo.toml is the canonical dependency manifest; Cargo.lock records the resolved binary dependency graph.",
-    "Keep README.md and ARCHITECTURE.md aligned with cargo run -- --help whenever CLI flags change.",
+    "Keep README.md and docs/ARCHITECTURE.md aligned with cargo run -- --help whenever CLI flags change.",
     "Run the maintenance checks before committing user-facing changes."
   ]
 }
