@@ -10,7 +10,7 @@ These items form the current stable base of the project.
   - Replaced manual `std::env::args()` handling with clap derive parsing.
   - Added flags for format selection, dry runs, verbosity, filters, `--fail-on`, shell completions, and plan-file input.
 - [x] Add a comprehensive `.gitignore`
-  - Covers Rust build output and Terraform local state/artifact files.
+  - Covers Rust build output, Terraform local state/artifact files, and OS files.
 - [x] Add GitHub Actions CI/CD
   - Runs formatting, clippy, tests, build, and hidden/bidirectional Unicode scanning on pushes and pull requests.
 - [x] Add structured output formats
@@ -31,39 +31,34 @@ These items form the current stable base of the project.
   - Generates completion scripts for bash, elvish, fish, PowerShell, and zsh.
 - [x] Consolidate documentation under `docs/`
   - Keeps the root README as the public landing page and stores support docs under `docs/`, including `docs/ARCHITECTURE.md` as the canonical architecture document.
-
-## Current priorities
-
-These items should be addressed before broader release/distribution work.
-
-- [ ] Fix replacement summary-count edge case
-  - Ensure Terraform `create/delete` replacements are counted consistently with `delete/create` replacements.
+- [x] Add `--output-file` support
+  - Write rendered output to a file for CI artifact workflows.
+  - Tracked by #17.
+- [x] Split the single-file CLI into focused modules
+  - `cli.rs`, `parser.rs`, `renderer.rs`, `terraform.rs` — each module owns one concern.
+- [x] Fix replacement summary-count edge case
+  - Terraform `create/delete` replacements are counted consistently with `delete/create` replacements.
   - Tracked by #82.
-- [ ] Complete configuration documentation
-  - Document every supported `.terraform-plan-parser.toml` key and add a copy/pasteable example config file.
+- [x] Complete configuration documentation
+  - Documented every supported `.terraform-plan-parser.toml` key with a copy/pasteable example config file.
   - Tracked by #74.
-- [ ] Expand contributor onboarding
-  - Add a first-time contributor quickstart and keep local check instructions aligned with CI.
+- [x] Expand contributor onboarding
+  - Added a first-time contributor quickstart and kept local check instructions aligned with CI.
   - Tracked by #83.
-- [ ] Align GitHub Wiki with canonical repository docs
-  - Keep the wiki as an operations/navigation surface that links back to README and `docs/` instead of duplicating detailed reference content.
+- [x] Align GitHub Wiki with canonical repository docs
+  - Wiki acts as an operations/navigation surface that links back to README and `docs/`.
   - Tracked by #79.
 
 ## Next
 
-These items become stronger candidates after the current release-readiness issues are resolved.
+These items become stronger candidates now that the release-readiness foundation is solid.
 
-- [x] Add `--output-file` support
-  - Write rendered output to a file for CI artifact workflows.
-  - Tracked by #17.
 - [ ] Add cross-platform release binaries
   - Build tagged release artifacts for Linux, macOS, and Windows with checksums.
   - Tracked by #24.
 - [ ] Add Homebrew formula support
   - Provides a polished installation path for macOS users after release binaries exist.
   - Tracked by #25.
-- [ ] Split the single-file CLI into focused modules
-  - Move CLI/config, Terraform execution, parsing, filtering, and rendering into focused modules once feature growth justifies the added structure.
 
 ## Later
 
