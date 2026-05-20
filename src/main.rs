@@ -23,10 +23,27 @@ fn main() {
     tracing::debug!(config_path = ?config_path, "Configuration loaded");
     tracing::debug!("Verbose logging enabled");
 
-    let input = terraform::resolve_input(&settings, &cli.directory).unwrap_or_else(|error| {
-        tracing::error!("{error}");
-        std::process::exit(1);
-    });
+    let input =
+        terraform::resolve_input(&settings, &cli.directory, &cli.compare).unwrap_or_else(|error| {
+            tracing::error!("{error}");
+            std::process::exit(1);
+        });
+
+    // Handle compare mode
+    if let parser::TerraformInput::Compare { old, new } = &input {
+        let diff = terraform::load_and_compare(old, new).unwrap_or_else(|error| {
+            tracing::error!("{error}");
+            std::process::exit(1);
+        });
+        let rendered = renderer::render_diff(&diff, &settings.format, settings.no_emoji);
+        renderer::write_rendered_output(settings.output_file.as_deref(), &rendered).unwrap_or_else(
+            |error| {
+                tracing::error!("{error}");
+                std::process::exit(1);
+            },
+        );
+        return;
+    }
 
     if settings.dry_run {
         tracing::info!("{}", terraform::render_dry_run(&input).trim_end());
@@ -52,6 +69,7 @@ fn main() {
         parser::TerraformInput::Directory(directory) => directory.as_path(),
         parser::TerraformInput::JsonPlanFile(plan_file)
         | parser::TerraformInput::BinaryPlanFile(plan_file) => plan_file.as_path(),
+        parser::TerraformInput::Compare { new, .. } => new.as_path(),
     };
 
     let rendered_output = renderer::render_changes(
@@ -767,5 +785,117 @@ not-json
         assert!(written.contains("## Terraform plan summary"));
         assert!(written.contains("| - Delete | 1 |"));
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    // ── Compare mode unit tests ──────────────────────────────────────────────
+
+    #[test]
+    fn compare_plans_detects_added_resources() {
+        let old = vec![ResourceChange {
+            resource_type: "aws_instance".to_string(),
+            resource_name: "web".to_string(),
+            action: "create".to_string(),
+        }];
+        let new = vec![
+            ResourceChange {
+                resource_type: "aws_instance".to_string(),
+                resource_name: "web".to_string(),
+                action: "create".to_string(),
+            },
+            ResourceChange {
+                resource_type: "aws_s3_bucket".to_string(),
+                resource_name: "logs".to_string(),
+                action: "create".to_string(),
+            },
+        ];
+
+        let diff = crate::parser::compare_plans(&old, &new);
+        assert_eq!(diff.added.len(), 1);
+        assert_eq!(diff.added[0].resource_name, "logs");
+        assert!(diff.removed.is_empty());
+        assert!(diff.changed.is_empty());
+    }
+
+    #[test]
+    fn compare_plans_detects_removed_resources() {
+        let old = vec![
+            ResourceChange {
+                resource_type: "aws_instance".to_string(),
+                resource_name: "web".to_string(),
+                action: "create".to_string(),
+            },
+            ResourceChange {
+                resource_type: "aws_s3_bucket".to_string(),
+                resource_name: "logs".to_string(),
+                action: "delete".to_string(),
+            },
+        ];
+        let new = vec![ResourceChange {
+            resource_type: "aws_instance".to_string(),
+            resource_name: "web".to_string(),
+            action: "create".to_string(),
+        }];
+
+        let diff = crate::parser::compare_plans(&old, &new);
+        assert!(diff.added.is_empty());
+        assert_eq!(diff.removed.len(), 1);
+        assert_eq!(diff.removed[0].resource_name, "logs");
+        assert!(diff.changed.is_empty());
+    }
+
+    #[test]
+    fn compare_plans_detects_changed_actions() {
+        let old = vec![ResourceChange {
+            resource_type: "aws_instance".to_string(),
+            resource_name: "web".to_string(),
+            action: "create".to_string(),
+        }];
+        let new = vec![ResourceChange {
+            resource_type: "aws_instance".to_string(),
+            resource_name: "web".to_string(),
+            action: "update".to_string(),
+        }];
+
+        let diff = crate::parser::compare_plans(&old, &new);
+        assert!(diff.added.is_empty());
+        assert!(diff.removed.is_empty());
+        assert_eq!(diff.changed.len(), 1);
+        assert_eq!(diff.changed[0].old_action, "create");
+        assert_eq!(diff.changed[0].new_action, "update");
+    }
+
+    #[test]
+    fn compare_plans_empty_when_identical() {
+        let old = vec![ResourceChange {
+            resource_type: "aws_instance".to_string(),
+            resource_name: "web".to_string(),
+            action: "create".to_string(),
+        }];
+        let new = old.clone();
+
+        let diff = crate::parser::compare_plans(&old, &new);
+        assert!(diff.is_empty());
+        assert_eq!(diff.total_changes(), 0);
+    }
+
+    #[test]
+    fn compare_plans_sorts_output_deterministically() {
+        let old = vec![];
+        let new = vec![
+            ResourceChange {
+                resource_type: "aws_s3_bucket".to_string(),
+                resource_name: "z_bucket".to_string(),
+                action: "create".to_string(),
+            },
+            ResourceChange {
+                resource_type: "aws_instance".to_string(),
+                resource_name: "a_instance".to_string(),
+                action: "create".to_string(),
+            },
+        ];
+
+        let diff = crate::parser::compare_plans(&old, &new);
+        assert_eq!(diff.added[0].resource_type, "aws_instance");
+        assert_eq!(diff.added[1].resource_type, "aws_s3_bucket");
     }
 }

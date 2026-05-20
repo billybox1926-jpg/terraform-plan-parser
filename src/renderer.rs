@@ -2,7 +2,7 @@ use std::io::Write;
 use tracing::Level;
 use tracing_subscriber::fmt::MakeWriter;
 
-use crate::parser::{count_actions, ChangeCounts, Format, ResourceChange};
+use crate::parser::{count_actions, ChangeCounts, Format, PlanDiff, ResourceChange};
 
 #[derive(Clone, Copy)]
 pub struct LevelWriter;
@@ -332,4 +332,210 @@ pub fn write_rendered_output(
         tracing::info!("{}", rendered.trim_end());
     }
     Ok(())
+}
+
+// ── Diff rendering ──────────────────────────────────────────────────────────
+
+fn diff_action_symbols(no_emoji: bool) -> (&'static str, &'static str, &'static str) {
+    if no_emoji {
+        ("+", "~", "-")
+    } else {
+        ("➕", "🔄", "➖")
+    }
+}
+
+pub fn render_diff(diff: &PlanDiff, format: &Format, no_emoji: bool) -> String {
+    match format {
+        Format::Text => render_diff_text(diff, no_emoji),
+        Format::Json => render_diff_json(diff),
+        Format::Csv => render_diff_csv(diff),
+        Format::Table => render_diff_table(diff, no_emoji),
+    }
+}
+
+fn render_diff_text(diff: &PlanDiff, no_emoji: bool) -> String {
+    let (add_sym, change_sym, del_sym) = diff_action_symbols(no_emoji);
+    let mut output = String::new();
+
+    if diff.is_empty() {
+        let prefix = if no_emoji { "" } else { "✅ " };
+        output.push_str(&format!("{}No differences between plans.\n", prefix));
+        return output;
+    }
+
+    output.push_str("Plan comparison:\n\n");
+
+    if !diff.added.is_empty() {
+        output.push_str(&format!("Added ({}):\n", diff.added.len()));
+        for change in &diff.added {
+            output.push_str(&format!(
+                "  {} {} ({})\n",
+                add_sym, change.resource_type, change.resource_name
+            ));
+        }
+        output.push('\n');
+    }
+
+    if !diff.removed.is_empty() {
+        output.push_str(&format!("Removed ({}):\n", diff.removed.len()));
+        for change in &diff.removed {
+            output.push_str(&format!(
+                "  {} {} ({})\n",
+                del_sym, change.resource_type, change.resource_name
+            ));
+        }
+        output.push('\n');
+    }
+
+    if !diff.changed.is_empty() {
+        output.push_str(&format!("Changed ({}):\n", diff.changed.len()));
+        for change in &diff.changed {
+            output.push_str(&format!(
+                "  {} {} {} ({} → {})\n",
+                change_sym,
+                change.resource_type,
+                change.resource_name,
+                change.old_action,
+                change.new_action
+            ));
+        }
+        output.push('\n');
+    }
+
+    output.push_str(&format!(
+        "Summary: {} added, {} removed, {} changed\n",
+        diff.added.len(),
+        diff.removed.len(),
+        diff.changed.len()
+    ));
+
+    output
+}
+
+fn render_diff_json(diff: &PlanDiff) -> String {
+    format!(
+        "{}\n",
+        serde_json::to_string_pretty(diff).expect("diff serializes to JSON")
+    )
+}
+
+fn render_diff_csv(diff: &PlanDiff) -> String {
+    let mut output = String::new();
+    output.push_str("change_type,resource_type,resource_name,old_action,new_action\n");
+
+    for change in &diff.added {
+        output.push_str(&format!(
+            "added,{},{},,create\n",
+            csv_escape(&change.resource_type),
+            csv_escape(&change.resource_name)
+        ));
+    }
+    for change in &diff.removed {
+        output.push_str(&format!(
+            "removed,{},{},,delete\n",
+            csv_escape(&change.resource_type),
+            csv_escape(&change.resource_name)
+        ));
+    }
+    for change in &diff.changed {
+        output.push_str(&format!(
+            "changed,{},{},{},{}\n",
+            csv_escape(&change.resource_type),
+            csv_escape(&change.resource_name),
+            csv_escape(&change.old_action),
+            csv_escape(&change.new_action)
+        ));
+    }
+
+    output
+}
+
+fn render_diff_table(diff: &PlanDiff, no_emoji: bool) -> String {
+    let mut output = String::new();
+
+    if diff.is_empty() {
+        output.push_str("No differences between plans.\n");
+        return output;
+    }
+
+    output.push_str("Plan comparison:\n\n");
+
+    // Build entries: (symbol, type, name, old_action, new_action)
+    let mut entries: Vec<(String, String, String, String, String)> = Vec::new();
+    for c in &diff.added {
+        let sym = if no_emoji {
+            "+ ".to_string()
+        } else {
+            "➕ ".to_string()
+        };
+        entries.push((
+            sym,
+            c.resource_type.clone(),
+            c.resource_name.clone(),
+            "create".to_string(),
+            "".to_string(),
+        ));
+    }
+    for c in &diff.removed {
+        let sym = if no_emoji {
+            "- ".to_string()
+        } else {
+            "➖ ".to_string()
+        };
+        entries.push((
+            sym,
+            c.resource_type.clone(),
+            c.resource_name.clone(),
+            "delete".to_string(),
+            "".to_string(),
+        ));
+    }
+    for c in &diff.changed {
+        let sym = if no_emoji {
+            "~ ".to_string()
+        } else {
+            "🔄 ".to_string()
+        };
+        entries.push((
+            sym,
+            c.resource_type.clone(),
+            c.resource_name.clone(),
+            c.old_action.clone(),
+            c.new_action.clone(),
+        ));
+    }
+
+    // Calculate column widths
+    let type_width = entries
+        .iter()
+        .map(|(_, t, _, _, _)| t.len())
+        .chain(["Resource Type".len()])
+        .max()
+        .unwrap_or(13);
+    let name_width = entries
+        .iter()
+        .map(|(_, _, n, _, _)| n.len())
+        .chain(["Resource Name".len()])
+        .max()
+        .unwrap_or(13);
+
+    // Header
+    output.push_str(&format!(
+        "  {:<type_width$}  {:<name_width$}  Old Action  New Action\n",
+        "Resource Type", "Resource Name"
+    ));
+    output.push_str(&format!(
+        "  {:-<type_width$}  {:-<name_width$}  ----------  ----------\n",
+        "", ""
+    ));
+
+    // Rows
+    for (sym, rtype, name, old_action, new_action) in &entries {
+        output.push_str(&format!(
+            "{}  {:<type_width$}  {:<name_width$}  {:<10}  {}\n",
+            sym, rtype, name, old_action, new_action
+        ));
+    }
+
+    output
 }

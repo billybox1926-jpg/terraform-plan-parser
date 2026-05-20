@@ -1,0 +1,3 @@
+{"@level":"info","message":"Terraform will perform the following actions"}
+{"@level":"info","change":{"resource":{"resource_type":"aws_instance","resource_name":"web"},"action":"update"}}
+{"@level":"info","change":{"resource":{"resource_type":"aws_rds_cluster","resource_name":"db"},"action":"create"}}

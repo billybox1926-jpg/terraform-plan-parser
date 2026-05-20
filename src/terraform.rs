@@ -72,6 +72,13 @@ pub fn render_dry_run(input: &TerraformInput) -> String {
                 current_dir.display()
             )
         }
+        TerraformInput::Compare { old, new } => {
+            format!(
+                "Dry run: would compare plan files '{}' and '{}'.\n",
+                old.display(),
+                new.display()
+            )
+        }
     }
 }
 
@@ -81,7 +88,29 @@ pub fn load_changes(input: &TerraformInput) -> Result<Vec<ResourceChange>, Strin
         TerraformInput::Directory(directory) => run_terraform_plan(directory),
         TerraformInput::JsonPlanFile(plan_file) => read_plan_json_file(plan_file),
         TerraformInput::BinaryPlanFile(plan_file) => run_terraform_show(plan_file),
+        TerraformInput::Compare { .. } => {
+            Err("Compare mode should use load_and_compare, not load_changes".to_string())
+        }
     }
+}
+
+/// Load a single plan file (JSON, NDJSON, or .tfplan) and return parsed changes.
+pub fn load_plan_file(path: &Path) -> Result<Vec<ResourceChange>, String> {
+    if is_tfplan_file(path) {
+        run_terraform_show(path)
+    } else {
+        read_plan_json_file(path)
+    }
+}
+
+/// Load two plan files and return their diff.
+pub fn load_and_compare(
+    old_path: &Path,
+    new_path: &Path,
+) -> Result<crate::parser::PlanDiff, String> {
+    let old_changes = load_plan_file(old_path)?;
+    let new_changes = load_plan_file(new_path)?;
+    Ok(crate::parser::compare_plans(&old_changes, &new_changes))
 }
 
 pub fn read_plan_json_file(plan_file: &Path) -> Result<Vec<ResourceChange>, String> {
@@ -201,7 +230,24 @@ pub fn run_terraform_show(plan_file: &Path) -> Result<Vec<ResourceChange>, Strin
 pub fn resolve_input(
     settings: &crate::cli::AppSettings,
     directory: &str,
+    compare: &Option<Vec<PathBuf>>,
 ) -> Result<TerraformInput, String> {
+    // Compare mode takes precedence
+    if let Some(paths) = compare {
+        if paths.len() != 2 {
+            return Err("Compare mode requires exactly two plan file paths".to_string());
+        }
+        let old = absolutize(&paths[0]);
+        let new = absolutize(&paths[1]);
+        if !old.is_file() {
+            return Err(format!("Old plan file not found: {}", old.display()));
+        }
+        if !new.is_file() {
+            return Err(format!("New plan file not found: {}", new.display()));
+        }
+        return Ok(TerraformInput::Compare { old, new });
+    }
+
     if let Some(stdin_contents) = read_piped_stdin()? {
         return Ok(TerraformInput::StdinJson(stdin_contents));
     }

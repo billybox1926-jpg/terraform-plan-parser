@@ -21,6 +21,7 @@ A lightweight Rust CLI that turns Terraform plan JSON into clean summaries for l
 - **Shell completions** — generate completion scripts for bash, elvish, fish, PowerShell, or zsh with `--completions`
 - **Optional project config** — persist output, filter, and CI defaults in `.terraform-plan-parser.toml`
 - **Zero config by default** — just run it
+- **Plan comparison** — diff two Terraform plans with `--compare old.json new.json` to see added, removed, and changed resources
 - **Cross-platform** — works on Windows, macOS, and Linux
 
 ## Prerequisites
@@ -189,8 +190,9 @@ Supported completion shells are `bash`, `elvish`, `fish`, `powershell`, and `zsh
 | Option | Description |
 | --- | --- |
 | `[DIRECTORY]` | Terraform project directory or saved `.tfplan` file to inspect. Defaults to the current directory. |
-| `--plan-file PATH` | Read a pre-generated NDJSON/full JSON plan file, or convert a saved `.tfplan` file with `terraform show -json`. |
-| `--config PATH` | Read defaults from a specific `.terraform-plan-parser.toml` file instead of auto-discovering one. |
+|| `--plan-file PATH` | Read a pre-generated NDJSON/full JSON plan file, or convert a saved `.tfplan` file with `terraform show -json`. |
+|| `--compare PATH,PATH` | Compare two plan files and show added, removed, and changed resources. Accepts NDJSON, JSON, or `.tfplan` files. |
+|| `--config PATH` | Read defaults from a specific `.terraform-plan-parser.toml` file instead of auto-discovering one. |
 | `--output-file PATH` | Write rendered output to a file instead of stdout. |
 | `--format text|json|csv|table` | Choose text, JSON, CSV, or aligned table output. |
 | `--no-emoji` | Render text/table summaries without emoji symbols. |
@@ -247,6 +249,34 @@ terraform_plan_parser . --fail-on delete
 # Ignore data reads and fail on destructive replacement-style actions
 terraform_plan_parser . --exclude-action 'read,noop' --fail-on 'delete,replace'
 ```
+
+## Plan comparison
+
+Use `--compare` to diff two Terraform plan files and see what changed:
+
+```bash
+# Compare two plan files
+terraform_plan_parser --compare old-plan.json new-plan.json
+
+# Compare with JSON output for CI/reporting
+terraform_plan_parser --compare old-plan.json new-plan.json --format json
+
+# Compare with CSV output
+terraform_plan_parser --compare old-plan.json new-plan.json --format csv
+
+# Compare .tfplan binary files (requires terraform in PATH)
+terraform_plan_parser --compare old.tfplan new.tfplan
+
+# Write diff output to a file
+terraform_plan_parser --compare old.json new.json --format json --output-file diff.json
+```
+
+The diff output shows:
+- **Added** — resources present in the new plan but not the old
+- **Removed** — resources present in the old plan but not the new
+- **Changed** — resources with different actions between plans (e.g., `create → update`)
+
+All output formats (text, JSON, CSV, table) are supported. Resources are matched by `(resource_type, resource_name)` and sorted deterministically.
 
 ## Configuration file
 

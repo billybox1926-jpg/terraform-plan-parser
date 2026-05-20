@@ -1,7 +1,7 @@
 use glob::Pattern;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, PartialEq, Eq, Serialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, Clone)]
 pub struct ResourceChange {
     pub resource_type: String,
     pub resource_name: String,
@@ -53,11 +53,107 @@ pub enum TerraformInput {
     Directory(std::path::PathBuf),
     JsonPlanFile(std::path::PathBuf),
     BinaryPlanFile(std::path::PathBuf),
+    Compare {
+        old: std::path::PathBuf,
+        new: std::path::PathBuf,
+    },
 }
 
 impl TerraformInput {
     pub fn requires_terraform(&self) -> bool {
         matches!(self, Self::Directory(_) | Self::BinaryPlanFile(_))
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Clone)]
+pub struct DiffChange {
+    pub resource_type: String,
+    pub resource_name: String,
+    pub old_action: String,
+    pub new_action: String,
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize)]
+pub struct PlanDiff {
+    pub added: Vec<ResourceChange>,
+    pub removed: Vec<ResourceChange>,
+    pub changed: Vec<DiffChange>,
+}
+
+impl PlanDiff {
+    pub fn is_empty(&self) -> bool {
+        self.added.is_empty() && self.removed.is_empty() && self.changed.is_empty()
+    }
+
+    #[allow(dead_code)]
+    pub fn total_changes(&self) -> usize {
+        self.added.len() + self.removed.len() + self.changed.len()
+    }
+}
+
+/// Compare two plan files and return the diff.
+/// Resources are matched by (resource_type, resource_name).
+pub fn compare_plans(old: &[ResourceChange], new: &[ResourceChange]) -> PlanDiff {
+    use std::collections::HashMap;
+
+    let old_map: HashMap<(&str, &str), &ResourceChange> = old
+        .iter()
+        .map(|c| ((c.resource_type.as_str(), c.resource_name.as_str()), c))
+        .collect();
+
+    let new_map: HashMap<(&str, &str), &ResourceChange> = new
+        .iter()
+        .map(|c| ((c.resource_type.as_str(), c.resource_name.as_str()), c))
+        .collect();
+
+    let mut added = Vec::new();
+    let mut removed = Vec::new();
+    let mut changed = Vec::new();
+
+    // Find added and changed resources
+    for (key, new_change) in &new_map {
+        match old_map.get(key) {
+            None => added.push((**new_change).clone()),
+            Some(old_change) if old_change.action != new_change.action => {
+                changed.push(DiffChange {
+                    resource_type: new_change.resource_type.clone(),
+                    resource_name: new_change.resource_name.clone(),
+                    old_action: old_change.action.clone(),
+                    new_action: new_change.action.clone(),
+                });
+            }
+            _ => {} // unchanged
+        }
+    }
+
+    // Find removed resources
+    for (key, old_change) in &old_map {
+        if !new_map.contains_key(key) {
+            removed.push((**old_change).clone());
+        }
+    }
+
+    // Sort for deterministic output
+    added.sort_by(|a, b| {
+        a.resource_type
+            .cmp(&b.resource_type)
+            .then_with(|| a.resource_name.cmp(&b.resource_name))
+    });
+    removed.sort_by(|a, b| {
+        a.resource_type
+            .cmp(&b.resource_type)
+            .then_with(|| a.resource_name.cmp(&b.resource_name))
+    });
+    changed.sort_by(|a, b| {
+        a.resource_type
+            .cmp(&b.resource_type)
+            .then_with(|| a.resource_name.cmp(&b.resource_name))
+    });
+
+    PlanDiff {
+        added,
+        removed,
+        changed,
     }
 }
 

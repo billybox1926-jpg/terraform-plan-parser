@@ -654,3 +654,117 @@ fn only_replace_shorthand_filters_replace_actions() {
     );
     fs::remove_dir_all(root).expect("remove temp dir");
 }
+
+// ── Compare mode integration tests ──────────────────────────────────────────
+
+#[test]
+fn compares_two_plan_files_showing_added_removed_changed() {
+    let old = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/plan-old.ndjson");
+    let new = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/plan-new.ndjson");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_terraform_plan_parser"))
+        .arg("--compare")
+        .arg(&old)
+        .arg(&new)
+        .arg("--format")
+        .arg("text")
+        .env("PATH", "")
+        .output()
+        .expect("run terraform_plan_parser");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Added"), "should show added resources");
+    assert!(stdout.contains("Removed"), "should show removed resources");
+    assert!(stdout.contains("Changed"), "should show changed resources");
+    assert!(
+        stdout.contains("aws_rds_cluster"),
+        "should contain added resource"
+    );
+    assert!(
+        stdout.contains("aws_s3_bucket"),
+        "should contain removed resource"
+    );
+    assert!(
+        stdout.contains("aws_instance"),
+        "should contain changed resource"
+    );
+    assert!(
+        stdout.contains("create → update"),
+        "should show action transition"
+    );
+}
+
+#[test]
+fn compares_two_plan_files_json_output() {
+    let old = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/plan-old.ndjson");
+    let new = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/plan-new.ndjson");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_terraform_plan_parser"))
+        .arg("--compare")
+        .arg(&old)
+        .arg(&new)
+        .arg("--format")
+        .arg("json")
+        .env("PATH", "")
+        .output()
+        .expect("run terraform_plan_parser");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("\"added\""),
+        "JSON should contain added array"
+    );
+    assert!(
+        stdout.contains("\"removed\""),
+        "JSON should contain removed array"
+    );
+    assert!(
+        stdout.contains("\"changed\""),
+        "JSON should contain changed array"
+    );
+}
+
+#[test]
+fn compares_identical_plans_shows_no_differences() {
+    let plan = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/plan.ndjson");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_terraform_plan_parser"))
+        .arg("--compare")
+        .arg(&plan)
+        .arg(&plan)
+        .arg("--format")
+        .arg("text")
+        .env("PATH", "")
+        .output()
+        .expect("run terraform_plan_parser");
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("No differences"),
+        "should report no differences for identical plans"
+    );
+}
+
+#[test]
+fn compare_with_nonexistent_file_fails() {
+    let existing = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/plan.ndjson");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_terraform_plan_parser"))
+        .arg("--compare")
+        .arg(&existing)
+        .arg("./nonexistent-plan.json")
+        .env("PATH", "")
+        .output()
+        .expect("run terraform_plan_parser");
+
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("not found"), "should report file not found");
+}

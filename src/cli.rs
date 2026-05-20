@@ -36,6 +36,12 @@ pub struct Cli {
     /// `terraform show -json`. Takes precedence over DIRECTORY and config defaults.
     #[arg(long, value_name = "PATH")]
     pub plan_file: Option<PathBuf>,
+    /// Compare two Terraform plan files and show differences.
+    ///
+    /// Accepts two plan file paths (NDJSON, JSON, or .tfplan files).
+    /// Outputs added, removed, and changed resources between the two plans.
+    #[arg(long, value_name = "PATH,PATH", value_delimiter = ',', num_args = 2)]
+    pub compare: Option<Vec<PathBuf>>,
     /// Read defaults from a specific TOML config file.
     ///
     /// When omitted, the CLI looks for `.terraform-plan-parser.toml` in the
