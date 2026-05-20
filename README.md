@@ -325,6 +325,7 @@ This repo treats issues as an active project-management layer. Issue templates, 
 - [Roadmap](docs/ROADMAP.md) tracks completed and planned capability areas.
 - [Suggestions](docs/suggestions.json) tracks lightweight maintenance notes and future-task ideas.
 - [Security](SECURITY.md) covers supported versions and how to report vulnerabilities.
+- [Changelog](CHANGELOG.md) tracks release history and notable changes.
 
 ## Architecture
 
