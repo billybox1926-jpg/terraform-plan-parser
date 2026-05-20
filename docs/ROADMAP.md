@@ -51,14 +51,14 @@ These items form the current stable base of the project.
 - [x] Add cross-platform release binaries
   - GitHub Actions workflow builds Linux (tar.gz), macOS (tar.gz), and Windows (zip) release artifacts with SHA256 checksums.
   - Tracked by #24.
+- [x] Add Homebrew formula support
+  - `brew install billybox1926-jpg/tap/terraform-plan-parser` installs on macOS and Linux.
+  - Formula lives in `homebrew/terraform-plan-parser.rb`, sourced from release artifacts.
+  - Tracked by #25.
 
 ## Next
 
 These items become stronger candidates now that the release-readiness foundation is solid.
-
-- [ ] Add Homebrew formula support
-  - Provides a polished installation path for macOS users after release binaries exist.
-  - Tracked by #25.
 
 ## Later
 
