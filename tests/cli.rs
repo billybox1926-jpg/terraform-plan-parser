@@ -261,14 +261,20 @@ fn dry_run_reports_live_plan_command_without_running_terraform() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Dry run: would execute `terraform plan -json -input=false -no-color`"));
-    // Normalize path separators for cross-platform comparison
+    // On Windows, canonicalize() returns \\?\ extended-length paths while
+    // env::temp_dir() may return short (8.3) paths. Canonicalize project_dir
+    // the same way the production code does so both sides match.
+    let canonical = project_dir
+        .canonicalize()
+        .unwrap_or_else(|_| project_dir.clone());
     let stdout_normalized = stdout.replace('\\', "/");
-    let project_normalized = project_dir.display().to_string().replace('\\', "/");
+    let canonical_normalized = canonical.display().to_string().replace('\\', "/");
     assert!(
-        stdout_normalized.contains(&project_normalized),
-        "stdout should contain project dir.\nstdout: {}\nproject_dir: {}",
+        stdout_normalized.contains(&canonical_normalized),
+        "stdout should contain project dir.\nstdout: {}\nproject_dir: {}\ncanonical: {}",
         stdout,
-        project_dir.display()
+        project_dir.display(),
+        canonical.display()
     );
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
 
