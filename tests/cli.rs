@@ -32,14 +32,8 @@ fn temp_dir(name: &str) -> PathBuf {
     dir
 }
 
-fn prepend_path(bin_dir: &Path) -> String {
-    let existing = env::var_os("PATH").unwrap_or_default();
-    let mut paths = vec![bin_dir.to_path_buf()];
-    paths.extend(env::split_paths(&existing));
-    env::join_paths(paths)
-        .expect("join PATH entries")
-        .to_string_lossy()
-        .into_owned()
+fn mock_only_path(bin_dir: &Path) -> String {
+    bin_dir.to_string_lossy().into_owned()
 }
 
 #[cfg(unix)]
@@ -83,38 +77,9 @@ esac
 fn write_mock_terraform(bin_dir: &Path) {
     fs::write(
         bin_dir.join("terraform.bat"),
-        r#"@echo off
-echo MOCK CALLED WITH: %* 1>&2
-if /I "%~1"=="version" (
-  echo Terraform v1.6.0
-  exit /b 0
-)
-if /I "%~1"=="plan" (
-  echo {"@level":"info","change":{"resource":{"resource_type":"aws_instance","resource_name":"web"},"action":"create"}}
-  echo {"@level":"info","change":{"resource":{"resource_type":"aws_s3_bucket","resource_name":"logs"},"action":"delete"}}
-  exit /b 0
-)
-if /I "%~1"=="show" (
-  echo {"resource_changes":[{"type":"aws_instance","name":"web","change":{"actions":["delete","create"]}}]}
-  exit /b 0
-)
-echo unexpected terraform command: %* 1>&2
-exit /b 1
-"#,
+        "@echo off\r\nif /I \"%~1\"==\"version\" (\r\n  echo Terraform v1.6.0\r\n  exit /b 0\r\n)\r\nif /I \"%~1\"==\"plan\" (\r\n  echo {\"@level\":\"info\",\"change\":{\"resource\":{\"resource_type\":\"aws_instance\",\"resource_name\":\"web\"},\"action\":\"create\"}}\r\n  echo {\"@level\":\"info\",\"change\":{\"resource\":{\"resource_type\":\"aws_s3_bucket\",\"resource_name\":\"logs\"},\"action\":\"delete\"}}\r\n  exit /b 0\r\n)\r\nif /I \"%~1\"==\"show\" (\r\n  echo {\"resource_changes\":[{\"type\":\"aws_instance\",\"name\":\"web\",\"change\":{\"actions\":[\"delete\",\"create\"]}}]}\r\n  exit /b 0\r\n)\r\nexit /b 1\r\n",
     )
     .expect("write mock terraform.bat");
-
-    // Some environments or tools might prioritize .exe over .bat or specifically look for .exe
-    // We create a tiny .exe proxy if possible, or just another .bat named .exe (which doesn't work)
-    // Actually, on Windows, if terraform.bat is in PATH, Command::new("terraform") should find it.
-    // Let's try creating terraform.cmd as well.
-    fs::write(
-        bin_dir.join("terraform.cmd"),
-        r#"@echo off
-"%~dp0terraform.bat" %*
-"#,
-    )
-    .expect("write mock terraform.cmd");
 }
 
 #[test]
@@ -130,8 +95,7 @@ fn renders_csv_from_mocked_live_plan() {
         .arg(&project_dir)
         .arg("--format")
         .arg("csv")
-        .env("PATH", prepend_path(&bin_dir))
-        .env("Path", prepend_path(&bin_dir))
+        .env("PATH", mock_only_path(&bin_dir))
         .env("PATHEXT", ".COM;.EXE;.BAT;.CMD")
         .output()
         .expect("run terraform_plan_parser");
@@ -165,8 +129,7 @@ fn writes_output_to_file_when_output_file_is_set() {
         .arg("csv")
         .arg("--output-file")
         .arg(&output_file)
-        .env("PATH", prepend_path(&bin_dir))
-        .env("Path", prepend_path(&bin_dir))
+        .env("PATH", mock_only_path(&bin_dir))
         .env("PATHEXT", ".COM;.EXE;.BAT;.CMD")
         .output()
         .expect("run terraform_plan_parser");
@@ -198,8 +161,7 @@ fn renders_json_from_mocked_saved_plan_file() {
         .arg(&plan_file)
         .arg("--format")
         .arg("json")
-        .env("PATH", prepend_path(&bin_dir))
-        .env("Path", prepend_path(&bin_dir))
+        .env("PATH", mock_only_path(&bin_dir))
         .env("PATHEXT", ".COM;.EXE;.BAT;.CMD")
         .output()
         .expect("run terraform_plan_parser");
