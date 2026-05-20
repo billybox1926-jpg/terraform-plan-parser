@@ -84,6 +84,7 @@ fn write_mock_terraform(bin_dir: &Path) {
     fs::write(
         bin_dir.join("terraform.bat"),
         r#"@echo off
+echo MOCK CALLED WITH: %* 1>&2
 if "%1" == "version" (
   echo Terraform v1.6.0
   exit /b 0
@@ -101,7 +102,19 @@ echo unexpected terraform command: %* 1>&2
 exit /b 1
 "#,
     )
-    .expect("write mock terraform");
+    .expect("write mock terraform.bat");
+
+    // Some environments or tools might prioritize .exe over .bat or specifically look for .exe
+    // We create a tiny .exe proxy if possible, or just another .bat named .exe (which doesn't work)
+    // Actually, on Windows, if terraform.bat is in PATH, Command::new("terraform") should find it.
+    // Let's try creating terraform.cmd as well.
+    fs::write(
+        bin_dir.join("terraform.cmd"),
+        r#"@echo off
+"%~dp0terraform.bat" %*
+"#,
+    )
+    .expect("write mock terraform.cmd");
 }
 
 #[test]
