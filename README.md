@@ -1,6 +1,7 @@
 # Terraform Plan Parser
 
-[![CI](https://github.com/billybox1926-jpg/terraform-plan-parser/actions/workflows/ci.yml/badge.svg)](https://github.com/billybox1926-jpg/terraform-plan-parser/actions/workflows/ci.yml)
+![Maintained](https://img.shields.io/badge/Maintained-yes-brightgreen)
+![Local checks](https://img.shields.io/badge/Local%20checks-documented-brightgreen)
 ![Rust](https://img.shields.io/badge/Rust-2021-orange)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 
