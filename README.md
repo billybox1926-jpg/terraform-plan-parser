@@ -47,18 +47,59 @@ brew upgrade terraform-plan-parser
 The Homebrew formula is maintained in the [homebrew-tap](https://github.com/billybox1926-jpg/homebrew-tap) repository.
 
 **Platform support:**
-- macOS: Intel (x86_64) — Apple Silicon (ARM) not yet supported (#101)
-- Linux: Intel (x86_64) — Linux ARM not yet supported (#101)
+- macOS: Intel (x86_64) and Apple Silicon (ARM64)
+- Linux: Intel (x86_64) and ARM64
 - Windows: Intel (x86_64) via Homebrew on WSL
 
-### Windows (native)
+**Note:** ARM64 artifacts are available in the release workflow but SHA256 checksums in the Homebrew formula will be updated at the next tagged release. Until then, ARM users can download release artifacts directly from GitHub Releases or build from source.
+
+### Pre-built binaries (all platforms)
 
 Download the latest release for your platform from the [Releases page](https://github.com/billybox1926-jpg/terraform-plan-parser/releases).
 
+Available artifacts:
+- `terraform_plan_parser-linux-x64.tar.gz` — Linux (x86_64)
+- `terraform_plan_parser-linux-arm64.tar.gz` — Linux (ARM64)
+- `terraform_plan_parser-macos-x64.tar.gz` — macOS (Intel)
+- `terraform_plan_parser-macos-arm64.tar.gz` — macOS (Apple Silicon)
+- `terraform_plan_parser-windows-x64.zip` — Windows (x86_64)
+- `SHA256SUMS` — Checksums for all artifacts
+
+**Linux (x64):**
+```bash
+curl -LO https://github.com/billybox1926-jpg/terraform-plan-parser/releases/latest/download/terraform_plan_parser-linux-x64.tar.gz
+tar xzf terraform_plan_parser-linux-x64.tar.gz
+sudo mv terraform_plan_parser /usr/local/bin/
+```
+
+**Linux (ARM64):**
+```bash
+curl -LO https://github.com/billybox1926-jpg/terraform-plan-parser/releases/latest/download/terraform_plan_parser-linux-arm64.tar.gz
+tar xzf terraform_plan_parser-linux-arm64.tar.gz
+sudo mv terraform_plan_parser /usr/local/bin/
+```
+
+**macOS (Intel):**
+```bash
+curl -LO https://github.com/billybox1926-jpg/terraform-plan-parser/releases/latest/download/terraform_plan_parser-macos-x64.tar.gz
+tar xzf terraform_plan_parser-macos-x64.tar.gz
+sudo mv terraform_plan_parser /usr/local/bin/
+```
+
+**macOS (Apple Silicon):**
+```bash
+curl -LO https://github.com/billybox1926-jpg/terraform-plan-parser/releases/latest/download/terraform_plan_parser-macos-arm64.tar.gz
+tar xzf terraform_plan_parser-macos-arm64.tar.gz
+sudo mv terraform_plan_parser /usr/local/bin/
+```
+
+**Windows (x64):**
 ```powershell
 # Download terraform_plan_parser-windows-x64.zip from the Releases page
 # Extract and add to your PATH
 ```
+
+Verify the download against the `SHA256SUMS` file included with each release.
 
 ### Pre-built binaries
 
