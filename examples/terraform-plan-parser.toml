@@ -12,6 +12,9 @@ plan-file = "tfplan.json"
 
 # Output format. Accepted values: "text", "json", "csv", "table".
 format = "table"
+# Optional output destination path. When set, rendered output is written here.
+# Relative paths are resolved from the config file location.
+output-file = "plan-summary.txt"
 
 # Rendering and diagnostic options.
 no-emoji = true

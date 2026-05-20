@@ -165,27 +165,36 @@ CLI values take precedence over config defaults for `plan-file`, `format`, and e
 
 ```text
 src/
-└── main.rs                         # Single-file application
-    ├── Cli / ConfigFile / AppSettings
-    │                                # argument parsing, TOML defaults, and runtime settings
-    ├── ResourceChange              # in-memory parsed change model
-    ├── PlanLine / ShowPlan structs # typed serde models for Terraform JSON formats
-    ├── load_config()               # config discovery, parsing, and config-relative paths
-    ├── resolve_input()             # path validation and input classification
-    ├── run_terraform_*()           # Terraform process management
-    ├── parse_*()                   # JSON deserialization helpers
-    ├── filter_changes()            # include/exclude exact and glob matching
-    ├── render_*()                  # text, JSON, CSV, table, and dry-run output
-    ├── init_tracing()              # stdout/stderr routing and verbosity
-    └── main()                      # entry point orchestration
+├── main.rs                         # Entry point + unit tests
+│   └── main()                      # Orchestration: CLI → config → input → parse → filter → render → policy
+├── cli.rs                          # CLI types, config loading, and settings resolution
+│   ├── Cli / ConfigFile / AppSettings / Format / SortBy
+│   ├── load_config() / resolve_config_path() / default_config_candidates()
+│   ├── app_settings() / resolve_include_action()
+│   └── cli_or_config_values() / resolve_config_relative_path()
+├── parser.rs                       # Data models, JSON parsing, filtering, and sorting
+│   ├── ResourceChange / PlanLine / ShowPlan / TerraformInput / ChangeCounts
+│   ├── parse_plan_line() / parse_plan_output() / parse_show_plan_output()
+│   ├── filter_changes() / matches_filter() / matches_pattern()
+│   ├── sort_resource_changes() / count_actions() / has_fail_on_actions()
+│   └── Format enum (shared with CLI layer)
+├── renderer.rs                     # All output rendering
+│   ├── LevelWriter / OutputWriter  # Tracing log routing (stdout vs stderr)
+│   ├── render_text() / render_json() / render_csv() / render_table()
+│   ├── render_changes() / render_summary_line() / summary_action_symbols()
+│   ├── render_github_step_summary() / append_github_step_summary()
+│   ├── write_github_summary_if_enabled() / should_write_github_summary()
+│   └── write_rendered_output()
+└── terraform.rs                    # Terraform process management
+    ├── init_tracing()              # Verbosity and subscriber setup
+    ├── terraform_command() / verify_terraform_available()
+    ├── render_dry_run()            # Dry-run intent rendering
+    ├── load_changes()              # Input dispatch: stdin / directory / plan file / tfplan
+    ├── run_terraform_plan() / run_terraform_show()
+    ├── resolve_input() / read_piped_stdin()
+    ├── resolve_plan_file_input() / resolve_positional_input()
+    └── absolutize() / is_tfplan_file()
 ```
-
-The project is intentionally kept as a single-file CLI for simplicity. As features grow, consider splitting it into:
-
-- `cli.rs` — argument parsing and config merging
-- `terraform.rs` — Terraform process management
-- `parser.rs` — JSON deserialization models and plan parsing tests
-- `renderer.rs` — output formatting
 
 ## Key Design Decisions
 

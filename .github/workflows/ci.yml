@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --check
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - run: cargo clippy --all-targets --all-features -- -D warnings
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build
+
+  unicode-scan:
+    name: Unicode Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan for hidden/bidirectional Unicode
+        run: |
+          # Reject source files containing bidirectional or invisible Unicode characters.
+          # See https://trojansource.codes/
+          set -euo pipefail
+
+          BAD_FILES=()
+
+          while IFS= read -r -d '' file; do
+            # Skip binary files, fixtures, and vendored dirs
+            case "$file" in
+              tests/fixtures/*|.git/*|target/*) continue ;;
+            esac
+
+            if perl -ne '
+              if (/[\x{202A}-\x{202E}\x{2066}-\x{2069}\x{200B}-\x{200F}\x{FEFF}]/) {
+                print "$ARGV:$.: $_\n";
+                $found = 1;
+              }
+              END { exit($found ? 1 : 0); }
+            ' "$file"; then
+              :
+            else
+              BAD_FILES+=("$file")
+              echo "FAIL: $file contains hidden/bidirectional Unicode"
+            fi
+          done < <(find . -type f -name '*.rs' -o -name '*.toml' -o -name '*.md' -o -name '*.yml' -o -name '*.yaml' -print0)
+
+          if [ ${#BAD_FILES[@]} -gt 0 ]; then
+            echo ""
+            echo "Found ${#BAD_FILES[@]} file(s) with hidden/bidirectional Unicode characters."
+            echo "These must be removed to prevent Trojan Source attacks."
+            exit 1
+          fi
+
+          echo "No hidden/bidirectional Unicode found."

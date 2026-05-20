@@ -2,6 +2,7 @@
 /target/
 
 # Terraform
+*.tf
 *.tfstate
 *.tfstate.*
 .terraform/
