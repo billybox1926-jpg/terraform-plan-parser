@@ -52,24 +52,34 @@ These items form the current stable base of the project.
   - GitHub Actions workflow builds Linux (tar.gz), macOS (tar.gz), and Windows (zip) release artifacts with SHA256 checksums.
   - Tracked by #24.
 - [x] Add Homebrew formula support
-  - `brew install billybox1926-jpg/tap/terraform-plan-parser` installs on macOS and Linux.
-  - Formula lives in `homebrew/terraform-plan-parser.rb`, sourced from release artifacts.
+  - `brew install billybox1926-jpg/tap/terraform-plan-parser` installs on macOS and Linux (Intel).
+  - Formula maintained in [homebrew-tap](https://github.com/billybox1926-jpg/homebrew-tap) repository.
   - Tracked by #25.
 - [x] Fix Windows test harness mock resolution
-  - Mock tests now use mock-only PATH to prevent system terraform.exe from being found before mock terraform.bat
+  - Mock tests now use mock-only PATH to prevent system terraform.exe from being found before mock terraform.bat.
   - Tracked by #100.
+- [x] Implement plan diffing between two plan files
+  - `--compare` flag shows added, removed, and changed resources between two plans.
+  - Supports all output formats (text, JSON, CSV, table).
+  - Tracked by #26.
+- [x] Add security policy
+  - `SECURITY.md` with supported versions and responsible disclosure guidance.
+  - Tracked by #105.
+- [x] Add changelog
+  - `CHANGELOG.md` tracks release history and notable changes.
+  - Tracked by #106.
 
 ## Next
 
-These items become stronger candidates now that the release-readiness foundation is solid.
+- [ ] Expand release support beyond Intel-only builds (#102)
+  - Add Apple Silicon (ARM64) macOS and Linux ARM binaries
+  - Add cross-platform CI test jobs (Windows, macOS) (#104)
+  - Update Homebrew formula for ARM support
 
 ## Later
 
 These are larger expansion ideas that need stable foundations first.
 
-- [ ] Implement plan diffing between two plan files
-  - Compare two parsed plans and render added, removed, or changed resources.
-  - Tracked by #26.
 - [ ] Add support for parsing Terraform state files
   - Build toward inventory, drift-analysis, and reporting workflows.
   - Tracked by #27.

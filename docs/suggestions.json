@@ -21,7 +21,13 @@
     "fail_on_guardrails": "done",
     "shell_completions": "done",
     "gitignore": "done",
-    "docs": "done"
+    "docs": "done",
+    "module_split": "done",
+    "compare_mode": "done",
+    "cross_platform_binaries": "done",
+    "homebrew_formula": "done",
+    "security_policy": "done",
+    "changelog": "done"
   },
   "maintenance_checks": [
     "cargo fmt --check",
@@ -33,38 +39,52 @@
   "future_tasks": [
     {
       "id": 1,
-      "priority": "medium",
-      "title": "Split the single-file CLI into modules",
-      "description": "Move CLI/config, Terraform process execution, parsing, filtering, and rendering into focused modules once feature growth justifies the extra structure.",
-      "scope": "src/"
+      "priority": "high",
+      "title": "Expand release support beyond Intel-only builds",
+      "description": "Add Apple Silicon (ARM64) macOS and Linux ARM binaries to release workflow. Update Homebrew formula for ARM support. Tracked by #102.",
+      "scope": ".github/workflows/release.yml, homebrew-tap"
     },
     {
       "id": 2,
-      "priority": "medium",
-      "title": "Add additional selectors",
-      "description": "Support resource name, address, module path, or provider filters in addition to the existing type/action include and exclude filters.",
-      "scope": "src/main.rs + tests/"
+      "priority": "high",
+      "title": "Add cross-platform CI test jobs",
+      "description": "Add Windows and macOS cargo test jobs to CI. Currently only Ubuntu is tested. Tracked by #104.",
+      "scope": ".github/workflows/ci.yml"
     },
     {
       "id": 3,
-      "priority": "low",
-      "title": "Add config helper commands",
-      "description": "Add explicit config generation or validation commands for .terraform-plan-parser.toml files.",
-      "scope": "src/main.rs + README.md"
+      "priority": "medium",
+      "title": "Add additional selectors",
+      "description": "Support resource name, address, module path, or provider filters in addition to the existing type/action include and exclude filters.",
+      "scope": "src/cli.rs, src/parser.rs, tests/"
     },
     {
       "id": 4,
-      "priority": "low",
-      "title": "Validate Terraform version compatibility",
-      "description": "Check the installed Terraform version before live plan/show execution and report unsupported versions clearly.",
-      "scope": "src/main.rs + tests/"
+      "priority": "medium",
+      "title": "Parse Terraform state files",
+      "description": "Build toward inventory, drift-analysis, and reporting workflows by parsing Terraform state files. Tracked by #27.",
+      "scope": "src/parser.rs, src/terraform.rs, tests/"
     },
     {
       "id": 5,
       "priority": "low",
+      "title": "Add config helper commands",
+      "description": "Add explicit config generation or validation commands for .terraform-plan-parser.toml files.",
+      "scope": "src/cli.rs, README.md"
+    },
+    {
+      "id": 6,
+      "priority": "low",
+      "title": "Validate Terraform version compatibility",
+      "description": "Check the installed Terraform version before live plan/show execution and report unsupported versions clearly.",
+      "scope": "src/terraform.rs, tests/"
+    },
+    {
+      "id": 7,
+      "priority": "low",
       "title": "Add CI policy presets",
       "description": "Offer named policy presets for common create/update/delete guardrails on top of the existing --fail-on flag.",
-      "scope": "src/main.rs + README.md"
+      "scope": "src/cli.rs, README.md"
     }
   ],
   "notes": [
