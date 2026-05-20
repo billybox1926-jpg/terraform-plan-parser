@@ -919,13 +919,32 @@ fn is_tfplan_file(path: &Path) -> bool {
     path.extension().is_some_and(|ext| ext == "tfplan")
 }
 
+fn terraform_command() -> Command {
+    if cfg!(windows) {
+        let mut cmd = Command::new("cmd");
+        cmd.arg("/c").arg("terraform");
+        cmd
+    } else {
+        Command::new("terraform")
+    }
+}
+
 fn verify_terraform_available() -> Result<(), String> {
     tracing::debug!("Verifying terraform is available in PATH");
-    Command::new("terraform")
+    let output = terraform_command()
         .arg("version")
         .output()
-        .map(|_| ())
-        .map_err(|_| "Error: 'terraform' not found in PATH. Is Terraform installed?".to_string())
+        .map_err(|error| {
+            format!("Error: 'terraform' not found in PATH or failed to execute: {error}")
+        })?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "Error: 'terraform version' failed with status {}.",
+            output.status
+        ));
+    }
+    Ok(())
 }
 
 fn render_dry_run(input: &TerraformInput) -> String {
@@ -976,15 +995,19 @@ fn read_plan_json_file(plan_file: &Path) -> Result<Vec<ResourceChange>, String> 
 
 fn run_terraform_plan(directory: &Path) -> Result<Vec<ResourceChange>, String> {
     tracing::debug!(directory = %directory.display(), "Running terraform plan");
-    let mut child = Command::new("terraform")
-        .arg("plan")
+    let mut cmd = terraform_command();
+
+    cmd.arg("plan")
         .arg("-json")
         .arg("-input=false")
         .arg("-no-color")
         .current_dir(directory)
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
+        .stderr(Stdio::piped());
+
+    tracing::debug!("Executing: {:?}", cmd);
+
+    let mut child = cmd.spawn()
         .map_err(|error| {
             format!(
                 "Failed to execute terraform in '{}': {error}",
@@ -1039,7 +1062,10 @@ fn run_terraform_plan(directory: &Path) -> Result<Vec<ResourceChange>, String> {
 fn run_terraform_show(plan_file: &Path) -> Result<Vec<ResourceChange>, String> {
     tracing::debug!(path = %plan_file.display(), "Running terraform show for saved plan file");
     let current_dir = plan_file.parent().unwrap_or_else(|| Path::new("."));
-    let output = Command::new("terraform")
+    
+    let mut cmd = terraform_command();
+
+    let output = cmd
         .arg("show")
         .arg("-json")
         .arg(plan_file)
