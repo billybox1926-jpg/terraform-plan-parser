@@ -54,9 +54,7 @@ case "$1" in
     echo '{"@level":"info","change":{"resource":{"resource_type":"aws_s3_bucket","resource_name":"logs"},"action":"delete"}}'
     ;;
   show)
-    cat <<'JSON'
-{"resource_changes":[{"type":"aws_instance","name":"web","change":{"actions":["delete","create"]}}]}
-JSON
+    printf '%s\n' '{"resource_changes":[{"type":"aws_instance","name":"web","change":{"actions":["delete","create"]}}]}'
     ;;
   *)
     echo "unexpected terraform command: $*" >&2
