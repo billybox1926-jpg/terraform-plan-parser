@@ -191,8 +191,7 @@ Add `.terraform-plan-parser.toml` to reuse defaults across local runs and CI job
 
 A complete copy/pasteable example is available at [`examples/terraform-plan-parser.toml`](examples/terraform-plan-parser.toml).
 
-```
-toml
+```toml
 plan-file = "plan.ndjson"
 format = "csv"
 no-emoji = true
