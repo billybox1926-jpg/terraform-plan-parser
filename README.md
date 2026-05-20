@@ -30,12 +30,39 @@ A lightweight Rust CLI that turns Terraform plan JSON into clean summaries for l
 
 ## Installation
 
+### Pre-built binaries
+
+Download the latest release for your platform from the [Releases page](https://github.com/billybox1926-jpg/terraform-plan-parser/releases).
+
+**Linux (x64):**
 ```bash
-# Clone the repo
+curl -LO https://github.com/billybox1926-jpg/terraform-plan-parser/releases/latest/download/terraform_plan_parser-linux-x64.tar.gz
+tar xzf terraform_plan_parser-linux-x64.tar.gz
+sudo mv terraform_plan_parser /usr/local/bin/
+```
+
+**macOS (x64):**
+```bash
+curl -LO https://github.com/billybox1926-jpg/terraform-plan-parser/releases/latest/download/terraform_plan_parser-macos-x64.tar.gz
+tar xzf terraform_plan_parser-macos-x64.tar.gz
+sudo mv terraform_plan_parser /usr/local/bin/
+```
+
+**Windows (x64):**
+```powershell
+# Download terraform_plan_parser-windows-x64.zip from the Releases page
+# Extract and add to your PATH
+```
+
+Verify the download against the `SHA256SUMS` file included with each release.
+
+### Build from source
+
+Requires [Rust](https://rustup.rs/).
+
+```bash
 git clone https://github.com/billybox1926-jpg/terraform-plan-parser.git
 cd terraform-plan-parser
-
-# Build and install
 cargo install --path .
 ```
 

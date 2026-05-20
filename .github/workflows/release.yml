@@ -1,0 +1,107 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  BIN_NAME: terraform_plan_parser
+
+jobs:
+  build-linux:
+    name: Build (Linux x64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+      - name: Install cross-compilation tools
+        run: sudo apt-get update && sudo apt-get install -y gcc-multilib
+      - name: Build release binary
+        run: cargo build --release --target x86_64-unknown-linux-gnu
+      - name: Package artifact
+        run: |
+          cd target/x86_64-unknown-linux-gnu/release
+          tar czf ${{ env.BIN_NAME }}-linux-x64.tar.gz ${{ env.BIN_NAME }}
+          mv ${{ env.BIN_NAME }}-linux-x64.tar.gz ../../..
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-x64
+          path: ${{ env.BIN_NAME }}-linux-x64.tar.gz
+
+  build-macos:
+    name: Build (macOS x64)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin
+      - name: Build release binary
+        run: cargo build --release --target x86_64-apple-darwin
+      - name: Package artifact
+        run: |
+          cd target/x86_64-apple-darwin/release
+          tar czf ${{ env.BIN_NAME }}-macos-x64.tar.gz ${{ env.BIN_NAME }}
+          mv ${{ env.BIN_NAME }}-macos-x64.tar.gz ../../..
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-x64
+          path: ${{ env.BIN_NAME }}-macos-x64.tar.gz
+
+  build-windows:
+    name: Build (Windows x64)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - name: Build release binary
+        run: cargo build --release --target x86_64-pc-windows-msvc
+      - name: Package artifact
+        run: |
+          cd target/x86_64-pc-windows-msvc/release
+          7z a ${{ env.BIN_NAME }}-windows-x64.zip ${{ env.BIN_NAME }}.exe
+          mv ${{ env.BIN_NAME }}-windows-x64.zip ../../..
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64
+          path: ${{ env.BIN_NAME }}-windows-x64.zip
+
+  release:
+    name: Create Release
+    needs: [build-linux, build-macos, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Generate checksums
+        run: |
+          cd artifacts
+          find . -type f \( -name "*.tar.gz" -o -name "*.zip" \) -exec sha256sum {} \; > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/linux-x64/*.tar.gz
+            artifacts/macos-x64/*.tar.gz
+            artifacts/windows-x64/*.zip
+            artifacts/SHA256SUMS
+          generate_release_notes: true
