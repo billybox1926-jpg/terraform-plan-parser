@@ -324,6 +324,7 @@ This repo treats issues as an active project-management layer. Issue templates, 
 - [Contributing](docs/CONTRIBUTING.md) covers local checks and collaboration expectations.
 - [Roadmap](docs/ROADMAP.md) tracks completed and planned capability areas.
 - [Suggestions](docs/suggestions.json) tracks lightweight maintenance notes and future-task ideas.
+- [Security](SECURITY.md) covers supported versions and how to report vulnerabilities.
 
 ## Architecture
 
