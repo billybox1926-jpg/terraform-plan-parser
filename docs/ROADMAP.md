@@ -53,8 +53,8 @@ These items should be addressed before broader release/distribution work.
 
 These items become stronger candidates after the current release-readiness issues are resolved.
 
-- [ ] Add `--output-file` support
-  - Enables CI artifact workflows and downstream comparison/reporting features.
+- [x] Add `--output-file` support
+  - Write rendered output to a file for CI artifact workflows.
   - Tracked by #17.
 - [ ] Add cross-platform release binaries
   - Build tagged release artifacts for Linux, macOS, and Windows with checksums.
