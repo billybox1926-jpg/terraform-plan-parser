@@ -403,7 +403,7 @@ fn count_actions(resource_changes: &[ResourceChange]) -> ChangeCounts {
             "create" => counts.create += 1,
             "update" => counts.update += 1,
             "delete" => counts.delete += 1,
-            "replace" => {
+            "replace" | "create/delete" => {
                 counts.create += 1;
                 counts.delete += 1;
             }
@@ -1541,6 +1541,60 @@ not-json
         assert_eq!(
             render_summary_line(&count_actions(&changes), true),
             "Summary:\n + 2 to create\n ~ 1 to update\n - 1 to delete\n"
+        );
+    }
+
+    #[test]
+    fn counts_create_delete_replacements_as_create_and_delete() {
+        let changes = vec![ResourceChange {
+            resource_type: "aws_instance".to_string(),
+            resource_name: "web".to_string(),
+            action: "create/delete".to_string(),
+        }];
+
+        assert_eq!(
+            count_actions(&changes),
+            ChangeCounts {
+                create: 1,
+                update: 0,
+                delete: 1,
+            }
+        );
+        assert_eq!(
+            render_summary_line(&count_actions(&changes), true),
+            "Summary:\n + 1 to create\n ~ 0 to update\n - 1 to delete\n"
+        );
+    }
+
+    #[test]
+    fn preserves_create_delete_rendering_while_counting_summary_totals() {
+        let stdout = r#"{
+    "resource_changes": [
+        {
+            "type": "aws_instance",
+            "name": "web",
+            "change": { "actions": ["create", "delete"] }
+        }
+    ]
+}"#;
+
+        let changes = parse_plan_output(stdout);
+
+        assert_eq!(
+            changes,
+            vec![ResourceChange {
+                resource_type: "aws_instance".to_string(),
+                resource_name: "web".to_string(),
+                action: "create/delete".to_string(),
+            }]
+        );
+        assert_eq!(
+            count_actions(&changes),
+            ChangeCounts {
+                create: 1,
+                update: 0,
+                delete: 1,
+            }
         );
     }
 
