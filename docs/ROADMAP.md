@@ -55,6 +55,9 @@ These items form the current stable base of the project.
   - `brew install billybox1926-jpg/tap/terraform-plan-parser` installs on macOS and Linux.
   - Formula lives in `homebrew/terraform-plan-parser.rb`, sourced from release artifacts.
   - Tracked by #25.
+- [x] Fix Windows test harness mock resolution
+  - Mock tests now use mock-only PATH to prevent system terraform.exe from being found before mock terraform.bat
+  - Tracked by #100.
 
 ## Next
 
