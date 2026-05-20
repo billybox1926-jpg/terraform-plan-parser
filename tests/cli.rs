@@ -85,16 +85,16 @@ fn write_mock_terraform(bin_dir: &Path) {
         bin_dir.join("terraform.bat"),
         r#"@echo off
 echo MOCK CALLED WITH: %* 1>&2
-if "%1" == "version" (
+if /I "%~1"=="version" (
   echo Terraform v1.6.0
   exit /b 0
 )
-if "%1" == "plan" (
+if /I "%~1"=="plan" (
   echo {"@level":"info","change":{"resource":{"resource_type":"aws_instance","resource_name":"web"},"action":"create"}}
   echo {"@level":"info","change":{"resource":{"resource_type":"aws_s3_bucket","resource_name":"logs"},"action":"delete"}}
   exit /b 0
 )
-if "%1" == "show" (
+if /I "%~1"=="show" (
   echo {"resource_changes":[{"type":"aws_instance","name":"web","change":{"actions":["delete","create"]}}]}
   exit /b 0
 )
@@ -131,6 +131,8 @@ fn renders_csv_from_mocked_live_plan() {
         .arg("--format")
         .arg("csv")
         .env("PATH", prepend_path(&bin_dir))
+        .env("Path", prepend_path(&bin_dir))
+        .env("PATHEXT", ".COM;.EXE;.BAT;.CMD")
         .output()
         .expect("run terraform_plan_parser");
 
@@ -164,6 +166,8 @@ fn writes_output_to_file_when_output_file_is_set() {
         .arg("--output-file")
         .arg(&output_file)
         .env("PATH", prepend_path(&bin_dir))
+        .env("Path", prepend_path(&bin_dir))
+        .env("PATHEXT", ".COM;.EXE;.BAT;.CMD")
         .output()
         .expect("run terraform_plan_parser");
 
@@ -195,6 +199,8 @@ fn renders_json_from_mocked_saved_plan_file() {
         .arg("--format")
         .arg("json")
         .env("PATH", prepend_path(&bin_dir))
+        .env("Path", prepend_path(&bin_dir))
+        .env("PATHEXT", ".COM;.EXE;.BAT;.CMD")
         .output()
         .expect("run terraform_plan_parser");
 
