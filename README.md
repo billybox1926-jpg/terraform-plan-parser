@@ -189,6 +189,8 @@ terraform_plan_parser . --exclude-action 'read,noop' --fail-on 'delete,replace'
 
 Add `.terraform-plan-parser.toml` to reuse defaults across local runs and CI jobs. The CLI discovers the file in the current directory or next to the selected input, and `--config PATH` can point at a specific file.
 
+A complete copy/pasteable example is available at [`examples/terraform-plan-parser.toml`](examples/terraform-plan-parser.toml).
+
 ```toml
 plan-file = "plan.ndjson"
 format = "csv"
@@ -196,14 +198,28 @@ no-emoji = true
 dry-run = false
 verbose = false
 quiet = false
+no-header = false
+
 include-type = ["aws_*"]
 exclude-type = ["*_bucket"]
 include-action = ["create", "update"]
 exclude-action = ["delete"]
+
+only-delete = false
+only-create = false
+only-update = false
+only-replace = false
+
 fail-on = ["delete"]
+github-summary = false
+sort-by = "type"
 ```
 
-CLI options override config defaults for `plan-file`, `format`, and filter lists. Boolean options are enabled when either the config value or CLI flag is true. Relative `plan-file` values are resolved from the config file directory.
+Supported config keys are `plan-file`, `format`, `no-emoji`, `dry-run`, `verbose`, `quiet`, `no-header`, `include-type`, `exclude-type`, `include-action`, `exclude-action`, `only-delete`, `only-create`, `only-update`, `only-replace`, `fail-on`, `github-summary`, and `sort-by`.
+
+`format` accepts `text`, `json`, `csv`, or `table`. `sort-by` accepts `type`, `name`, or `action`. Filter lists accept exact values or glob patterns. The `only-*` keys are shorthand action filters.
+
+Configuration keys use kebab-case TOML names, such as `plan-file` and `sort-by`, not Rust snake_case field names. CLI options override config defaults for `plan-file`, `format`, and filter lists. Boolean options are enabled when either the config value or CLI flag is true. Relative `plan-file` values are resolved from the config file directory.
 
 ## Project management
 
