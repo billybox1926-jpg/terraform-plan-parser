@@ -1,0 +1,47 @@
+# Example terraform-plan-parser configuration.
+#
+# By default, the CLI looks for .terraform-plan-parser.toml in the current
+# directory and near the selected Terraform plan input. You can also pass a
+# specific config file with:
+#
+#   terraform_plan_parser --config examples/terraform-plan-parser.toml
+
+# Optional path to a Terraform plan JSON file, binary plan file, or project directory.
+# Relative paths are resolved from the config file location.
+plan-file = "tfplan.json"
+
+# Output format. Accepted values: "text", "json", "csv", "table".
+format = "table"
+
+# Rendering and diagnostic options.
+no-emoji = true
+dry-run = false
+verbose = false
+quiet = false
+
+# CSV-only option.
+no-header = false
+
+# Resource type filters support exact values and glob patterns.
+include-type = ["aws_*"]
+exclude-type = ["*_iam_*"]
+
+# Action filters support exact values and glob patterns.
+# Common actions include "create", "update", "delete", and "replace".
+include-action = ["create", "update", "delete", "replace"]
+exclude-action = []
+
+# Shortcut filters. Prefer setting at most one of these to true.
+only-delete = false
+only-create = false
+only-update = false
+only-replace = false
+
+# Exit with a non-zero status when any matching action is present.
+fail-on = ["delete", "replace"]
+
+# Append output to the GitHub Actions step summary when available.
+github-summary = false
+
+# Sort output before rendering. Accepted values: "type", "name", "action".
+sort-by = "type"
