@@ -30,7 +30,7 @@ A lightweight Rust CLI that turns Terraform plan JSON into clean summaries for l
 
 ## Installation
 
-### Homebrew (macOS/Linux)
+### Homebrew (macOS/Linux/Windows)
 
 ```bash
 brew tap billybox1926-jpg/tap
@@ -45,7 +45,19 @@ brew upgrade terraform-plan-parser
 
 The Homebrew formula is maintained in the [homebrew-tap](https://github.com/billybox1926-jpg/homebrew-tap) repository.
 
-**Note:** The Homebrew formula currently supports Intel (x86_64) macOS and Linux only. Apple Silicon (ARM) and Linux ARM are not yet supported — use the pre-built binaries or build from source instead.
+**Platform support:**
+- macOS: Intel (x86_64) — Apple Silicon (ARM) not yet supported (#101)
+- Linux: Intel (x86_64) — Linux ARM not yet supported (#101)
+- Windows: Intel (x86_64) via Homebrew on WSL
+
+### Windows (native)
+
+Download the latest release for your platform from the [Releases page](https://github.com/billybox1926-jpg/terraform-plan-parser/releases).
+
+```powershell
+# Download terraform_plan_parser-windows-x64.zip from the Releases page
+# Extract and add to your PATH
+```
 
 ### Pre-built binaries
 
