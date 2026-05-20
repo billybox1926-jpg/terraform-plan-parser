@@ -45,6 +45,8 @@ brew upgrade terraform-plan-parser
 
 The Homebrew formula is maintained in the [homebrew-tap](https://github.com/billybox1926-jpg/homebrew-tap) repository.
 
+**Note:** The Homebrew formula currently supports Intel (x86_64) macOS and Linux only. Apple Silicon (ARM) and Linux ARM are not yet supported — use the pre-built binaries or build from source instead.
+
 ### Pre-built binaries
 
 Download the latest release for your platform from the [Releases page](https://github.com/billybox1926-jpg/terraform-plan-parser/releases).
