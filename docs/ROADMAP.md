@@ -48,14 +48,14 @@ These items form the current stable base of the project.
 - [x] Align GitHub Wiki with canonical repository docs
   - Wiki acts as an operations/navigation surface that links back to README and `docs/`.
   - Tracked by #79.
+- [x] Add cross-platform release binaries
+  - GitHub Actions workflow builds Linux (tar.gz), macOS (tar.gz), and Windows (zip) release artifacts with SHA256 checksums.
+  - Tracked by #24.
 
 ## Next
 
 These items become stronger candidates now that the release-readiness foundation is solid.
 
-- [ ] Add cross-platform release binaries
-  - Build tagged release artifacts for Linux, macOS, and Windows with checksums.
-  - Tracked by #24.
 - [ ] Add Homebrew formula support
   - Provides a polished installation path for macOS users after release binaries exist.
   - Tracked by #25.
