@@ -106,6 +106,12 @@ terraform_plan_parser . --format csv
 terraform_plan_parser . --format table
 ```
 
+Write rendered output to a file (useful for CI artifacts) with `--output-file`:
+
+```bash
+terraform_plan_parser . --format json --output-file plan-output.json
+```
+
 Use `--no-emoji` when plain text output is preferred, or `--quiet`/`-q` to suppress the final action-count summary in text and table output:
 
 ```bash
@@ -129,6 +135,7 @@ Supported completion shells are `bash`, `elvish`, `fish`, `powershell`, and `zsh
 | `[DIRECTORY]` | Terraform project directory or saved `.tfplan` file to inspect. Defaults to the current directory. |
 | `--plan-file PATH` | Read a pre-generated NDJSON/full JSON plan file, or convert a saved `.tfplan` file with `terraform show -json`. |
 | `--config PATH` | Read defaults from a specific `.terraform-plan-parser.toml` file instead of auto-discovering one. |
+| `--output-file PATH` | Write rendered output to a file instead of stdout. |
 | `--format text|json|csv|table` | Choose text, JSON, CSV, or aligned table output. |
 | `--no-emoji` | Render text/table summaries without emoji symbols. |
 | `--dry-run` | Validate the selected input and print the Terraform command or file read that would happen, without loading a plan. |
@@ -194,6 +201,7 @@ A complete copy/pasteable example is available at [`examples/terraform-plan-pars
 ```toml
 plan-file = "plan.ndjson"
 format = "csv"
+output-file = "plan-output.csv"
 no-emoji = true
 dry-run = false
 verbose = false
@@ -215,11 +223,11 @@ github-summary = false
 sort-by = "type"
 ```
 
-Supported config keys are `plan-file`, `format`, `no-emoji`, `dry-run`, `verbose`, `quiet`, `no-header`, `include-type`, `exclude-type`, `include-action`, `exclude-action`, `only-delete`, `only-create`, `only-update`, `only-replace`, `fail-on`, `github-summary`, and `sort-by`.
+Supported config keys are `plan-file`, `format`, `output-file`, `no-emoji`, `dry-run`, `verbose`, `quiet`, `no-header`, `include-type`, `exclude-type`, `include-action`, `exclude-action`, `only-delete`, `only-create`, `only-update`, `only-replace`, `fail-on`, `github-summary`, and `sort-by`.
 
 `format` accepts `text`, `json`, `csv`, or `table`. `sort-by` accepts `type`, `name`, or `action`. Filter lists accept exact values or glob patterns. The `only-*` keys are shorthand action filters.
 
-Configuration keys use kebab-case TOML names, such as `plan-file` and `sort-by`, not Rust snake_case field names. CLI options override config defaults for `plan-file`, `format`, and filter lists. Boolean options are enabled when either the config value or CLI flag is true. Relative `plan-file` values are resolved from the config file directory.
+Configuration keys use kebab-case TOML names, such as `plan-file` and `sort-by`, not Rust snake_case field names. CLI options override config defaults for `plan-file`, `output-file`, `format`, and filter lists. Boolean options are enabled when either the config value or CLI flag is true. Relative `plan-file` and `output-file` values are resolved from the config file directory.
 
 ## Project management
 

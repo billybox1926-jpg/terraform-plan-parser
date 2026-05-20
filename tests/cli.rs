@@ -148,6 +148,40 @@ fn renders_csv_from_mocked_live_plan() {
 }
 
 #[test]
+fn writes_output_to_file_when_output_file_is_set() {
+    let root = temp_dir("output_file");
+    let bin_dir = root.join("bin");
+    let project_dir = root.join("project");
+    let output_file = root.join("rendered.csv");
+    fs::create_dir_all(&bin_dir).expect("create bin dir");
+    fs::create_dir_all(&project_dir).expect("create project dir");
+    write_mock_terraform(&bin_dir);
+
+    let output = Command::new(env!("CARGO_BIN_EXE_terraform_plan_parser"))
+        .arg(&project_dir)
+        .arg("--format")
+        .arg("csv")
+        .arg("--output-file")
+        .arg(&output_file)
+        .env("PATH", prepend_path(&bin_dir))
+        .output()
+        .expect("run terraform_plan_parser");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(String::from_utf8_lossy(&output.stdout), "");
+    assert_eq!(
+        fs::read_to_string(&output_file).expect("read output file"),
+        "resource_type,resource_name,action\naws_instance,web,create\naws_s3_bucket,logs,delete\n"
+    );
+
+    fs::remove_dir_all(root).expect("remove temp dir");
+}
+
+#[test]
 fn renders_json_from_mocked_saved_plan_file() {
     let root = temp_dir("saved_plan");
     let bin_dir = root.join("bin");

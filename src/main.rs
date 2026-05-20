@@ -3,6 +3,7 @@ use clap_complete::Shell;
 use glob::Pattern;
 use serde::{Deserialize, Serialize};
 use std::{
+    fs,
     io::{BufRead, BufReader, IsTerminal, Read},
     path::{Path, PathBuf},
     process::{Command, Stdio},
@@ -87,6 +88,9 @@ struct Cli {
     /// current directory and then next to the selected DIRECTORY/plan file.
     #[arg(long, value_name = "PATH")]
     config: Option<PathBuf>,
+    /// Write rendered output to a file instead of stdout.
+    #[arg(long, value_name = "PATH")]
+    output_file: Option<PathBuf>,
     #[arg(long, value_enum)]
     format: Option<Format>,
     #[arg(long)]
@@ -193,6 +197,7 @@ struct ConfigFile {
     fail_on: Vec<String>,
     github_summary: Option<bool>,
     sort_by: Option<SortBy>,
+    output_file: Option<PathBuf>,
 }
 
 #[derive(Debug)]
@@ -211,6 +216,7 @@ struct AppSettings {
     fail_on: Vec<String>,
     github_summary: bool,
     sort_by: Option<SortBy>,
+    output_file: Option<PathBuf>,
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize)]
@@ -798,7 +804,26 @@ fn app_settings(cli: &Cli, config: ConfigFile, config_path: Option<&Path>) -> Ap
         fail_on: cli_or_config_values(&cli.fail_on, config.fail_on),
         github_summary: cli.github_summary || config.github_summary.unwrap_or(false),
         sort_by: cli.sort_by.or(config.sort_by),
+        output_file: cli.output_file.clone().or_else(|| {
+            config
+                .output_file
+                .map(|path| resolve_config_relative_path(path, config_path))
+        }),
     }
+}
+
+fn write_rendered_output(output_file: Option<&Path>, rendered: &str) -> Result<(), String> {
+    if let Some(path) = output_file {
+        fs::write(path, rendered).map_err(|error| {
+            format!(
+                "Failed to write rendered output to '{}': {error}",
+                path.display()
+            )
+        })?;
+    } else {
+        tracing::info!("{}", rendered.trim_end());
+    }
+    Ok(())
 }
 
 fn has_fail_on_actions(resource_changes: &[ResourceChange], fail_on: &[String]) -> bool {
@@ -1156,17 +1181,19 @@ fn main() {
         }
     };
 
-    tracing::info!(
-        "{}",
-        render_changes(
-            &resource_changes,
-            display_path,
-            &settings.format,
-            settings.no_emoji,
-            settings.quiet,
-            settings.no_header
-        )
-        .trim_end()
+    let rendered_output = render_changes(
+        &resource_changes,
+        display_path,
+        &settings.format,
+        settings.no_emoji,
+        settings.quiet,
+        settings.no_header,
+    );
+    write_rendered_output(settings.output_file.as_deref(), &rendered_output).unwrap_or_else(
+        |error| {
+            tracing::error!("{error}");
+            std::process::exit(1);
+        },
     );
 
     write_github_summary_if_enabled(&settings, display_path, &resource_changes);
@@ -1183,11 +1210,11 @@ mod tests {
         app_settings, append_github_step_summary, count_actions, csv_escape, filter_changes,
         has_fail_on_actions, parse_plan_output, render_csv, render_dry_run,
         render_github_step_summary, render_json, render_summary_line, render_table, render_text,
-        sort_resource_changes, ChangeCounts, Cli, ConfigFile, Format, ResourceChange, SortBy,
-        TerraformInput,
+        sort_resource_changes, write_rendered_output, ChangeCounts, Cli, ConfigFile, Format,
+        ResourceChange, SortBy, TerraformInput,
     };
     use clap::Parser;
-    use std::path::Path;
+    use std::{fs, path::Path};
 
     #[test]
     fn parses_resource_changes_from_ndjson() {
@@ -1211,6 +1238,23 @@ not-json
                 },
             ]
         );
+    }
+
+    #[test]
+    fn writes_rendered_output_to_file_when_requested() {
+        let temp_file = std::env::temp_dir().join(format!(
+            "terraform_plan_parser_output_{}.txt",
+            std::process::id()
+        ));
+        let content = "test output\n";
+
+        write_rendered_output(Some(temp_file.as_path()), content).expect("writes output file");
+        assert_eq!(
+            fs::read_to_string(&temp_file).expect("read output file"),
+            content
+        );
+
+        fs::remove_file(temp_file).expect("remove output file");
     }
 
     #[test]
