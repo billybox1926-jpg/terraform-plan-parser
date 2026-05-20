@@ -261,7 +261,15 @@ fn dry_run_reports_live_plan_command_without_running_terraform() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Dry run: would execute `terraform plan -json -input=false -no-color`"));
-    assert!(stdout.contains(&project_dir.display().to_string()));
+    // Normalize path separators for cross-platform comparison
+    let stdout_normalized = stdout.replace('\\', "/");
+    let project_normalized = project_dir.display().to_string().replace('\\', "/");
+    assert!(
+        stdout_normalized.contains(&project_normalized),
+        "stdout should contain project dir.\nstdout: {}\nproject_dir: {}",
+        stdout,
+        project_dir.display()
+    );
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
 
     fs::remove_dir_all(root).expect("remove temp dir");
