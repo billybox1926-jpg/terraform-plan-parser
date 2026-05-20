@@ -33,7 +33,8 @@ A lightweight Rust CLI that turns Terraform plan JSON into clean summaries for l
 ### Homebrew (macOS/Linux)
 
 ```bash
-brew install billybox1926-jpg/tap/terraform-plan-parser
+brew tap billybox1926-jpg/tap
+brew install terraform-plan-parser
 ```
 
 To upgrade:
@@ -41,6 +42,8 @@ To upgrade:
 ```bash
 brew upgrade terraform-plan-parser
 ```
+
+The Homebrew formula is maintained in the [homebrew-tap](https://github.com/billybox1926-jpg/homebrew-tap) repository.
 
 ### Pre-built binaries
 
