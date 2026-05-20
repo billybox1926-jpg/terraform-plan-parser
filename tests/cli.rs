@@ -14,8 +14,8 @@ fn temp_dir(name: &str) -> PathBuf {
     #[cfg(windows)]
     {
         let dir_str = dir.to_string_lossy();
-        if dir_str.starts_with(r"\\?\") {
-            dir = PathBuf::from(&dir_str[4..]);
+        if let Some(stripped) = dir_str.strip_prefix(r"\\?\") {
+            dir = PathBuf::from(stripped);
         }
     }
 

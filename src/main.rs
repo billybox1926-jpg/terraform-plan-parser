@@ -1007,13 +1007,12 @@ fn run_terraform_plan(directory: &Path) -> Result<Vec<ResourceChange>, String> {
 
     tracing::debug!("Executing: {:?}", cmd);
 
-    let mut child = cmd.spawn()
-        .map_err(|error| {
-            format!(
-                "Failed to execute terraform in '{}': {error}",
-                directory.display()
-            )
-        })?;
+    let mut child = cmd.spawn().map_err(|error| {
+        format!(
+            "Failed to execute terraform in '{}': {error}",
+            directory.display()
+        )
+    })?;
 
     let stdout = child
         .stdout
@@ -1062,7 +1061,7 @@ fn run_terraform_plan(directory: &Path) -> Result<Vec<ResourceChange>, String> {
 fn run_terraform_show(plan_file: &Path) -> Result<Vec<ResourceChange>, String> {
     tracing::debug!(path = %plan_file.display(), "Running terraform show for saved plan file");
     let current_dir = plan_file.parent().unwrap_or_else(|| Path::new("."));
-    
+
     let mut cmd = terraform_command();
 
     let output = cmd
