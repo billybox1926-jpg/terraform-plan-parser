@@ -246,6 +246,8 @@ fn dry_run_reports_live_plan_command_without_running_terraform() {
     let root = temp_dir("dry_run_live_plan");
     let project_dir = root.join("project");
     fs::create_dir_all(&project_dir).expect("create project dir");
+    let marker_file_name = ".terraform-plan-parser-dry-run-marker";
+    fs::write(project_dir.join(marker_file_name), "").expect("write project marker");
 
     let output = Command::new(env!("CARGO_BIN_EXE_terraform_plan_parser"))
         .arg(&project_dir)
@@ -261,23 +263,21 @@ fn dry_run_reports_live_plan_command_without_running_terraform() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Dry run: would execute `terraform plan -json -input=false -no-color`"));
-    // Check that the project directory path appears in the output.
-    // Use canonicalize() to match what absolutize() does in production,
-    // which resolves symlinks (e.g., /tmp -> /private/tmp on macOS)
-    // and strips Windows \\?\ prefixes.
-    let abs_path = std::env::current_dir()
-        .unwrap_or_else(|_| std::path::Path::new(".").to_path_buf())
-        .join(&project_dir)
-        .canonicalize()
-        .unwrap_or_else(|_| project_dir.clone());
-    let stdout_normalized = stdout.replace('\\', "/");
-    let path_normalized = abs_path.display().to_string().replace('\\', "/");
+    let dry_run_prefix =
+        "Dry run: would execute `terraform plan -json -input=false -no-color` in '";
+    let dry_run_directory = stdout
+        .trim()
+        .strip_prefix(dry_run_prefix)
+        .and_then(|remaining| remaining.strip_suffix("'."))
+        .expect("stdout should contain dry-run working directory");
     assert!(
-        stdout_normalized.contains(&path_normalized),
-        "stdout should contain project dir.\nstdout: {}\nproject_dir: {}\nabs_path: {}",
+        Path::new(dry_run_directory)
+            .join(marker_file_name)
+            .is_file(),
+        "stdout should contain project dir.\nstdout: {}\nproject_dir: {}\ndry_run_directory: {}",
         stdout,
         project_dir.display(),
-        abs_path.display()
+        dry_run_directory
     );
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
 
@@ -670,7 +670,7 @@ fn only_replace_shorthand_filters_replace_actions() {
     fs::remove_dir_all(root).expect("remove temp dir");
 }
 
-// ── Compare mode integration tests ──────────────────────────────────────────
+// â”€â”€ Compare mode integration tests â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 #[test]
 fn compares_two_plan_files_showing_added_removed_changed() {
@@ -709,7 +709,7 @@ fn compares_two_plan_files_showing_added_removed_changed() {
         "should contain changed resource"
     );
     assert!(
-        stdout.contains("create → update"),
+        stdout.contains("create â†’ update"),
         "should show action transition"
     );
 }
