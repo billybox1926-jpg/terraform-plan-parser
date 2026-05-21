@@ -511,7 +511,7 @@ not-json
         let changes = vec![ResourceChange {
             resource_type: "aws_instance".to_string(),
             resource_name: "web".to_string(),
-            action: "create/delete".to_string(),
+            action: "replace".to_string(),
         }];
 
         assert_eq!(
@@ -547,7 +547,7 @@ not-json
             vec![ResourceChange {
                 resource_type: "aws_instance".to_string(),
                 resource_name: "web".to_string(),
-                action: "create/delete".to_string(),
+                action: "replace".to_string(),
             }]
         );
         assert_eq!(

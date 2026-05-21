@@ -227,7 +227,14 @@ pub fn action_from_show_actions(actions: &[String]) -> Option<String> {
         [] => None,
         [action] if action == "no-op" => None,
         [action] => Some(action.clone()),
-        [first, second] if first == "delete" && second == "create" => Some("replace".to_string()),
+        // Both [delete, create] and [create, delete] are replacement semantics.
+        // Normalize to "replace" so filtering/counting works consistently.
+        [first, second]
+            if (first == "delete" && second == "create")
+                || (first == "create" && second == "delete") =>
+        {
+            Some("replace".to_string())
+        }
         _ => Some(actions.join("/")),
     }
 }
@@ -296,7 +303,7 @@ pub fn count_actions(resource_changes: &[ResourceChange]) -> ChangeCounts {
             "create" => counts.create += 1,
             "update" => counts.update += 1,
             "delete" => counts.delete += 1,
-            "replace" | "create/delete" => {
+            "replace" => {
                 counts.create += 1;
                 counts.delete += 1;
             }
