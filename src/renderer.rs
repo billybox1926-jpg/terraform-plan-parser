@@ -425,17 +425,21 @@ fn render_diff_csv(diff: &PlanDiff) -> String {
 
     for change in &diff.added {
         output.push_str(&format!(
-            "added,{},{},,create\n",
+            "added,{},{},,{}",
             csv_escape(&change.resource_type),
-            csv_escape(&change.resource_name)
+            csv_escape(&change.resource_name),
+            csv_escape(&change.action)
         ));
+        output.push('\n');
     }
     for change in &diff.removed {
         output.push_str(&format!(
-            "removed,{},{},,delete\n",
+            "removed,{},{},{},",
             csv_escape(&change.resource_type),
-            csv_escape(&change.resource_name)
+            csv_escape(&change.resource_name),
+            csv_escape(&change.action)
         ));
+        output.push('\n');
     }
     for change in &diff.changed {
         output.push_str(&format!(
@@ -472,8 +476,8 @@ fn render_diff_table(diff: &PlanDiff, no_emoji: bool) -> String {
             sym,
             c.resource_type.clone(),
             c.resource_name.clone(),
-            "create".to_string(),
-            "".to_string(),
+            String::new(),
+            c.action.clone(),
         ));
     }
     for c in &diff.removed {
@@ -486,8 +490,8 @@ fn render_diff_table(diff: &PlanDiff, no_emoji: bool) -> String {
             sym,
             c.resource_type.clone(),
             c.resource_name.clone(),
-            "delete".to_string(),
-            "".to_string(),
+            c.action.clone(),
+            String::new(),
         ));
     }
     for c in &diff.changed {
