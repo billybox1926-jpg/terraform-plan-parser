@@ -14,6 +14,7 @@ A lightweight Rust CLI that turns Terraform plan JSON into clean summaries for l
 - **Colorful summary** — see at a glance what's being created (➕), updated (🔄), deleted (➖), or read (📖)
 - **Directory-aware** — point it at any Terraform project directory to run `terraform plan -json`
 - **Plan-input aware** — parse piped Terraform plan JSON from stdin, pre-generated NDJSON/full JSON plan files with `--plan-file`, or saved `.tfplan` files through `terraform show -json`
+- **State inventory support** — parse Terraform state JSON from `--state`/`--state-json` and export inventory rows with the same JSON/CSV/table tooling
 - **Dry-run mode** — preview the Terraform command or file read that would happen with `--dry-run` without executing Terraform
 - **Configurable logging** — keep default output focused on the final summary, or add `--verbose`/`-v` for debug diagnostics
 - **Flexible filtering** — narrow results with comma-separated exact or glob patterns such as `--include-type aws_*`, `--exclude-type *_bucket`, or `--include-action cre*`
@@ -175,15 +176,27 @@ terraform_plan_parser saved.tfplan
 
 `--plan-file` takes precedence if both a positional directory/file and `--plan-file` are provided.
 
+Parse a local Terraform state JSON file as an inventory:
+
+```bash
+terraform_plan_parser --state terraform.tfstate
+terraform_plan_parser --state-json state.json --format csv
+terraform state pull > state.json
+terraform_plan_parser --state-json state.json --include-action managed
+```
+
+State parsing reads local JSON state only. It does not fetch remote state itself; use `terraform state pull` first when your backend is remote. State resources are rendered as inventory rows where `resource_type` is the Terraform type, `resource_name` includes module and instance index information when present, and `action` contains the state resource mode such as `managed` or `data`. Plan comparison and drift detection are still plan-focused and do not compare state files yet.
+
 Preview what the CLI would do without executing Terraform:
 
 ```bash
 terraform_plan_parser . --dry-run
 terraform_plan_parser --plan-file saved.tfplan --dry-run
 terraform_plan_parser --plan-file plan.json --dry-run
+terraform_plan_parser --state terraform.tfstate --dry-run
 ```
 
-Dry-run mode still validates the selected input path. For live directories it prints the `terraform plan -json -input=false -no-color` command that would run, for saved `.tfplan` files it prints the `terraform show -json` command that would run, and for JSON plan files it reports that the file would be read without any Terraform command.
+Dry-run mode still validates the selected input path. For live directories it prints the `terraform plan -json -input=false -no-color` command that would run, for saved `.tfplan` files it prints the `terraform show -json` command that would run, and for JSON plan or state files it reports that the file would be read without any Terraform command.
 
 Enable verbose logging when you need to troubleshoot path resolution, Terraform execution, or plan-file loading:
 
@@ -232,6 +245,8 @@ Supported completion shells are `bash`, `elvish`, `fish`, `powershell`, and `zsh
 | --- | --- |
 | `[DIRECTORY]` | Terraform project directory or saved `.tfplan` file to inspect. Defaults to the current directory. |
 || `--plan-file PATH` | Read a pre-generated NDJSON/full JSON plan file, or convert a saved `.tfplan` file with `terraform show -json`. |
+|| `--state PATH` | Read a local Terraform state JSON file and render an inventory. |
+|| `--state-json PATH` | Alias for `--state`, useful when reading output from `terraform state pull`. |
 || `--compare PATH,PATH` | Compare two plan files and show added, removed, and changed resources. Accepts NDJSON, JSON, or `.tfplan` files. |
 || `--config PATH` | Read defaults from a specific `.terraform-plan-parser.toml` file instead of auto-discovering one. |
 | `--output-file PATH` | Write rendered output to a file instead of stdout. |
@@ -350,7 +365,7 @@ github-summary = false
 sort-by = "type"
 ```
 
-Supported config keys are `plan-file`, `format`, `output-file`, `no-emoji`, `dry-run`, `verbose`, `quiet`, `no-header`, `include-type`, `exclude-type`, `include-action`, `exclude-action`, `only-delete`, `only-create`, `only-update`, `only-replace`, `fail-on`, `github-summary`, and `sort-by`.
+Supported config keys are `plan-file`, `state-file`, `format`, `output-file`, `no-emoji`, `dry-run`, `verbose`, `quiet`, `no-header`, `include-type`, `exclude-type`, `include-action`, `exclude-action`, `only-delete`, `only-create`, `only-update`, `only-replace`, `fail-on`, `github-summary`, and `sort-by`.
 
 `format` accepts `text`, `json`, `csv`, or `table`. `sort-by` accepts `type`, `name`, or `action`. Filter lists accept exact values or glob patterns. The `only-*` keys are shorthand action filters.
 

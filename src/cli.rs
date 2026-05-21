@@ -36,6 +36,12 @@ pub struct Cli {
     /// `terraform show -json`. Takes precedence over DIRECTORY and config defaults.
     #[arg(long, value_name = "PATH")]
     pub plan_file: Option<PathBuf>,
+    /// Read a Terraform state JSON file and render an inventory.
+    ///
+    /// Accepts local `.tfstate` files or JSON produced by `terraform state pull`.
+    /// The alias `--state-json` is also supported for explicit JSON inputs.
+    #[arg(long = "state", alias = "state-json", value_name = "PATH")]
+    pub state_file: Option<PathBuf>,
     /// Compare two Terraform plan files and show differences.
     ///
     /// Accepts two plan file paths (NDJSON, JSON, or .tfplan files).
@@ -131,6 +137,7 @@ pub enum SortBy {
 #[serde(default, rename_all = "kebab-case")]
 pub struct ConfigFile {
     pub plan_file: Option<PathBuf>,
+    pub state_file: Option<PathBuf>,
     pub format: Option<Format>,
     pub no_emoji: Option<bool>,
     pub dry_run: Option<bool>,
@@ -154,6 +161,7 @@ pub struct ConfigFile {
 #[derive(Debug)]
 pub struct AppSettings {
     pub plan_file: Option<PathBuf>,
+    pub state_file: Option<PathBuf>,
     pub format: Format,
     pub no_emoji: bool,
     pub dry_run: bool,
@@ -213,6 +221,7 @@ pub fn default_config_candidates(cli: &Cli) -> Vec<PathBuf> {
     let input_path = cli
         .plan_file
         .as_deref()
+        .or(cli.state_file.as_deref())
         .map(Path::to_path_buf)
         .unwrap_or_else(|| PathBuf::from(&cli.directory));
     let input_config_dir = if input_path.is_dir() {
@@ -263,9 +272,15 @@ pub fn app_settings(cli: &Cli, config: ConfigFile, config_path: Option<&Path>) -
             .plan_file
             .map(|path| resolve_config_relative_path(path, config_path))
     });
+    let state_file = cli.state_file.clone().or_else(|| {
+        config
+            .state_file
+            .map(|path| resolve_config_relative_path(path, config_path))
+    });
 
     AppSettings {
         plan_file,
+        state_file,
         format: cli.format.clone().or(config.format).unwrap_or(Format::Text),
         no_emoji: cli.no_emoji || config.no_emoji.unwrap_or(false),
         dry_run: cli.dry_run || config.dry_run.unwrap_or(false),

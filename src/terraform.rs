@@ -7,7 +7,8 @@ use std::{
 use tracing::Level;
 
 use crate::parser::{
-    parse_plan_line, parse_plan_output, parse_show_plan_output, ResourceChange, TerraformInput,
+    parse_plan_line, parse_plan_output, parse_show_plan_output, parse_state_output, ResourceChange,
+    TerraformInput,
 };
 use crate::renderer::LevelWriter;
 
@@ -67,6 +68,10 @@ pub fn render_dry_run(input: &TerraformInput) -> String {
             "Dry run: would read JSON Terraform plan file '{}'. No Terraform command would be executed.\n",
             plan_file.display()
         ),
+        TerraformInput::StateFile(state_file) => format!(
+            "Dry run: would read Terraform state JSON file '{}'. No Terraform command would be executed.\n",
+            state_file.display()
+        ),
         TerraformInput::BinaryPlanFile(plan_file) => {
             let current_dir = plan_file.parent().unwrap_or_else(|| Path::new("."));
             format!(
@@ -91,6 +96,7 @@ pub fn load_changes(input: &TerraformInput) -> Result<Vec<ResourceChange>, Strin
         TerraformInput::Directory(directory) => run_terraform_plan(directory),
         TerraformInput::JsonPlanFile(plan_file) => read_plan_json_file(plan_file),
         TerraformInput::BinaryPlanFile(plan_file) => run_terraform_show(plan_file),
+        TerraformInput::StateFile(state_file) => read_state_json_file(state_file),
         TerraformInput::Compare { .. } => {
             Err("Compare mode should use load_and_compare, not load_changes".to_string())
         }
@@ -126,6 +132,23 @@ pub fn read_plan_json_file(plan_file: &Path) -> Result<Vec<ResourceChange>, Stri
     })?;
 
     Ok(parse_plan_output(&contents))
+}
+
+pub fn read_state_json_file(state_file: &Path) -> Result<Vec<ResourceChange>, String> {
+    tracing::debug!(path = %state_file.display(), "Reading Terraform state JSON file");
+    let contents = std::fs::read_to_string(state_file).map_err(|error| {
+        format!(
+            "Failed to read Terraform state file '{}': {error}",
+            state_file.display()
+        )
+    })?;
+
+    parse_state_output(&contents).map_err(|error| {
+        format!(
+            "Failed to parse Terraform state JSON file '{}': {error}",
+            state_file.display()
+        )
+    })
 }
 
 pub fn run_terraform_plan(directory: &Path) -> Result<Vec<ResourceChange>, String> {
@@ -255,6 +278,10 @@ pub fn resolve_input(
         return Ok(TerraformInput::StdinJson(stdin_contents));
     }
 
+    if let Some(state_file) = &settings.state_file {
+        return resolve_state_file_input(state_file);
+    }
+
     if let Some(plan_file) = &settings.plan_file {
         return resolve_plan_file_input(plan_file);
     }
@@ -280,6 +307,27 @@ pub fn read_piped_stdin() -> Result<Option<String>, String> {
         tracing::debug!("Reading Terraform plan JSON from stdin");
         Ok(Some(contents))
     }
+}
+
+pub fn resolve_state_file_input(path: &Path) -> Result<TerraformInput, String> {
+    if !path.exists() {
+        return Err(format!(
+            "Error: state file not found at \"{}\"\
+            \nHint: check the path, or save remote state first with `terraform state pull > terraform.tfstate`.",
+            path.display()
+        ));
+    }
+
+    let abs_path = absolutize(path);
+    if !abs_path.is_file() {
+        return Err(format!(
+            "Error: --state path is not a file: \"{}\"\
+            \nHint: pass a local Terraform state JSON file.",
+            path.display()
+        ));
+    }
+
+    Ok(TerraformInput::StateFile(abs_path))
 }
 
 pub fn resolve_plan_file_input(path: &Path) -> Result<TerraformInput, String> {

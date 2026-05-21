@@ -47,12 +47,36 @@ pub struct ShowChange {
     pub actions: Vec<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct TerraformState {
+    pub resources: Option<Vec<StateResource>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct StateResource {
+    #[serde(default = "default_state_mode")]
+    pub mode: String,
+    pub module: Option<String>,
+    #[serde(default = "unknown_value", rename = "type")]
+    pub resource_type: String,
+    #[serde(default = "unknown_value")]
+    pub name: String,
+    #[serde(default)]
+    pub instances: Vec<StateInstance>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct StateInstance {
+    pub index_key: Option<serde_json::Value>,
+}
+
 #[derive(Debug)]
 pub enum TerraformInput {
     StdinJson(String),
     Directory(std::path::PathBuf),
     JsonPlanFile(std::path::PathBuf),
     BinaryPlanFile(std::path::PathBuf),
+    StateFile(std::path::PathBuf),
     Compare {
         old: std::path::PathBuf,
         new: std::path::PathBuf,
@@ -177,6 +201,10 @@ pub fn unknown_value() -> String {
     "unknown".to_string()
 }
 
+pub fn default_state_mode() -> String {
+    "managed".to_string()
+}
+
 pub fn parse_plan_line(line: &str) -> Option<ResourceChange> {
     let line = match serde_json::from_str::<PlanLine>(line) {
         Ok(line) => line,
@@ -220,6 +248,50 @@ pub fn parse_show_plan_output(stdout: &str) -> Result<Vec<ResourceChange>, serde
             })
         })
         .collect())
+}
+
+pub fn parse_state_output(stdout: &str) -> Result<Vec<ResourceChange>, serde_json::Error> {
+    let state = serde_json::from_str::<TerraformState>(stdout)?;
+    let mut resources = Vec::new();
+
+    for resource in state.resources.unwrap_or_default() {
+        for instance in &resource.instances {
+            resources.push(ResourceChange {
+                resource_type: resource.resource_type.clone(),
+                resource_name: state_resource_name(&resource, instance.index_key.as_ref()),
+                action: resource.mode.clone(),
+            });
+        }
+    }
+
+    Ok(resources)
+}
+
+pub fn state_resource_name(
+    resource: &StateResource,
+    index_key: Option<&serde_json::Value>,
+) -> String {
+    let mut name = String::new();
+    if let Some(module) = &resource.module {
+        name.push_str(module);
+        name.push('.');
+    }
+    name.push_str(&resource.name);
+
+    if let Some(index_key) = index_key {
+        name.push_str(&format_state_index_key(index_key));
+    }
+
+    name
+}
+
+pub fn format_state_index_key(index_key: &serde_json::Value) -> String {
+    match index_key {
+        serde_json::Value::String(value) => format!("[\"{}\"]", value.replace('"', "\\\"")),
+        serde_json::Value::Number(value) => format!("[{value}]"),
+        serde_json::Value::Bool(value) => format!("[{value}]"),
+        _ => "[unknown]".to_string(),
+    }
 }
 
 pub fn action_from_show_actions(actions: &[String]) -> Option<String> {
