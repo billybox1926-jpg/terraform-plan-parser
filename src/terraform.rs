@@ -25,7 +25,10 @@ pub fn init_tracing(verbose: bool) {
 pub fn terraform_command() -> Command {
     if cfg!(windows) {
         let mut cmd = Command::new("cmd");
-        cmd.arg("/c").arg("terraform");
+        // Use /d /s /c for safe Windows execution:
+        // /d — disables AutoRun registry commands
+        // /s — strips outer quotes so arguments parse cleanly
+        cmd.arg("/d").arg("/s").arg("/c").arg("terraform");
         cmd
     } else {
         Command::new("terraform")
