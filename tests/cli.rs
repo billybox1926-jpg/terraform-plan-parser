@@ -261,20 +261,22 @@ fn dry_run_reports_live_plan_command_without_running_terraform() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Dry run: would execute `terraform plan -json -input=false -no-color`"));
-    // On Windows, canonicalize() returns \\?\ extended-length paths while
-    // env::temp_dir() may return short (8.3) paths. Canonicalize project_dir
-    // the same way the production code does so both sides match.
-    let canonical = project_dir
+    // The binary calls absolutize() which canonicalizes the path.
+    // On macOS, /tmp is a symlink to /private/tmp, so we must
+    // canonicalize the same way to get a matching path.
+    let abs_path = std::env::current_dir()
+        .unwrap_or_else(|_| std::path::Path::new(".").to_path_buf())
+        .join(&project_dir)
         .canonicalize()
         .unwrap_or_else(|_| project_dir.clone());
     let stdout_normalized = stdout.replace('\\', "/");
-    let canonical_normalized = canonical.display().to_string().replace('\\', "/");
+    let path_normalized = abs_path.display().to_string().replace('\\', "/");
     assert!(
-        stdout_normalized.contains(&canonical_normalized),
-        "stdout should contain project dir.\nstdout: {}\nproject_dir: {}\ncanonical: {}",
+        stdout_normalized.contains(&path_normalized),
+        "stdout should contain project dir.\nstdout: {}\nproject_dir: {}\nabs_path: {}",
         stdout,
         project_dir.display(),
-        canonical.display()
+        abs_path.display()
     );
     assert!(String::from_utf8_lossy(&output.stderr).is_empty());
 
