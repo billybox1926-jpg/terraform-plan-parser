@@ -261,9 +261,10 @@ fn dry_run_reports_live_plan_command_without_running_terraform() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Dry run: would execute `terraform plan -json -input=false -no-color`"));
-    // The binary calls absolutize() which canonicalizes the path.
-    // On macOS, /tmp is a symlink to /private/tmp, so we must
-    // canonicalize the same way to get a matching path.
+    // Check that the project directory path appears in the output.
+    // Use canonicalize() to match what absolutize() does in production,
+    // which resolves symlinks (e.g., /tmp -> /private/tmp on macOS)
+    // and strips Windows \\?\ prefixes.
     let abs_path = std::env::current_dir()
         .unwrap_or_else(|_| std::path::Path::new(".").to_path_buf())
         .join(&project_dir)
