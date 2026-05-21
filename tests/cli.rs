@@ -529,7 +529,7 @@ fn only_update_shorthand_filters_update_actions() {
         String::from_utf8_lossy(&output.stdout),
         "resource_type,resource_name,action\naws_s3_bucket,logs,update\n"
     );
-    fs::remove_dir_all((root).expect("remove temp dir");
+    fs::remove_dir_all(root).expect("remove temp dir");
 }
 
 #[test]
@@ -587,6 +587,7 @@ fn excludes_actions_even_when_included() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("create"));
     assert!(stdout.contains("update"));
@@ -669,7 +670,7 @@ fn only_replace_shorthand_filters_replace_actions() {
     fs::remove_dir_all(root).expect("remove temp dir");
 }
 
-// ── Compare mode integration tests ─────────────────────────────────────────
+// ── Compare mode integration tests ──────────────────────────────────────────
 
 #[test]
 fn compares_two_plan_files_showing_added_removed_changed() {
