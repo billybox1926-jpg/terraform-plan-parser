@@ -92,7 +92,7 @@ jobs:
               BAD_FILES+=("$file")
               echo "FAIL: $file contains hidden/bidirectional Unicode"
             fi
-          done < <(find . -type f -name '*.rs' -o -name '*.toml' -o -name '*.md' -o -name '*.yml' -o -name '*.yaml' -print0)
+          done < <(find . -type f \( -name '*.rs' -o -name '*.toml' -o -name '*.md' -o -name '*.yml' -o -name '*.yaml' \) -print0)
 
           if [ ${#BAD_FILES[@]} -gt 0 ]; then
             echo ""
