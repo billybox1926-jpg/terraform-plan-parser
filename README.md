@@ -355,6 +355,9 @@ Supported config keys are `plan-file`, `state-file`, `format`, `output-file`, `n
 
 Configuration keys use kebab-case TOML names, such as `plan-file` and `sort-by`, not Rust snake_case field names. CLI options override config defaults for `plan-file`, `state-file`, `output-file`, `format`, and filter lists. Boolean options are enabled when either the config value or CLI flag is true. Relative `plan-file`, `state-file`, and `output-file` values are resolved from the config file directory.
 
+## Acknowledgements
+
+This project is maintained by BillyBox1926 and developed with an AI-assisted workflow. Contributor credit is preserved through Git history and pull request records.
 ## Project management
 
 This repo treats issues as an active project-management layer. Issue templates, mirrored dependency notes, label taxonomy, and maintainer workflow guidance keep the tracker readable for contributors and future maintainers.
