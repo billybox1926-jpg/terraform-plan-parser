@@ -32,7 +32,7 @@ A lightweight Rust CLI that turns Terraform plan JSON into clean summaries for l
 
 ## Installation
 
-### Homebrew (macOS/Linux/Windows)
+### Homebrew (macOS/Linux)
 
 ```bash
 brew tap billybox1926-jpg/tap
@@ -45,26 +45,26 @@ To upgrade:
 brew upgrade terraform-plan-parser
 ```
 
-The Homebrew formula is maintained in the [homebrew-tap](https://github.com/billybox1926-jpg/homebrew-tap) repository.
+The Homebrew formula is maintained in the [homebrew-tap](https://github.com/billybox1926-jpg/homebrew-tap) repository. Windows users should use the native release ZIP below; Homebrew on Windows is only relevant inside WSL or another Linux-style environment.
 
-**Platform support:**
+**Homebrew platform support:**
 - macOS: Intel (x86_64) and Apple Silicon (ARM64)
 - Linux: Intel (x86_64) and ARM64
-- Windows: Intel (x86_64) via Homebrew on WSL
+- Windows: WSL/Linux-style environments only
 
 **Note:** ARM64 artifacts are available in the release workflow but SHA256 checksums in the Homebrew formula will be updated at the next tagged release. Until then, ARM users can download release artifacts directly from GitHub Releases or build from source.
 
-### Pre-built binaries (all platforms)
+### Pre-built binaries
 
-Download the latest release for your platform from the [Releases page](https://github.com/billybox1926-jpg/terraform-plan-parser/releases).
+Download the latest release for your platform from the [Releases page](https://github.com/billybox1926-jpg/terraform-plan-parser/releases). GitHub Releases are the source of truth for downloadable binaries and checksums.
 
 Available artifacts:
 - `terraform_plan_parser-linux-x64.tar.gz` — Linux (x86_64)
 - `terraform_plan_parser-linux-arm64.tar.gz` — Linux (ARM64)
 - `terraform_plan_parser-macos-x64.tar.gz` — macOS (Intel)
 - `terraform_plan_parser-macos-arm64.tar.gz` — macOS (Apple Silicon)
-- `terraform_plan_parser-windows-x64.zip` — Windows (x86_64)
-- `SHA256SUMS` — Checksums for all artifacts
+- `terraform_plan_parser-windows-x64.zip` — native Windows (x86_64)
+- `SHA256SUMS` — checksums for all artifacts
 
 **Linux (x64):**
 ```bash
@@ -96,34 +96,8 @@ sudo mv terraform_plan_parser /usr/local/bin/
 
 **Windows (x64):**
 ```powershell
-# Download terraform_plan_parser-windows-x64.zip from the Releases page
-# Extract and add to your PATH
-```
-
-Verify the download against the `SHA256SUMS` file included with each release.
-
-### Pre-built binaries
-
-Download the latest release for your platform from the [Releases page](https://github.com/billybox1926-jpg/terraform-plan-parser/releases).
-
-**Linux (x64):**
-```bash
-curl -LO https://github.com/billybox1926-jpg/terraform-plan-parser/releases/latest/download/terraform_plan_parser-linux-x64.tar.gz
-tar xzf terraform_plan_parser-linux-x64.tar.gz
-sudo mv terraform_plan_parser /usr/local/bin/
-```
-
-**macOS (x64):**
-```bash
-curl -LO https://github.com/billybox1926-jpg/terraform-plan-parser/releases/latest/download/terraform_plan_parser-macos-x64.tar.gz
-tar xzf terraform_plan_parser-macos-x64.tar.gz
-sudo mv terraform_plan_parser /usr/local/bin/
-```
-
-**Windows (x64):**
-```powershell
-# Download terraform_plan_parser-windows-x64.zip from the Releases page
-# Extract and add to your PATH
+# Download terraform_plan_parser-windows-x64.zip from the Releases page.
+# Extract it, then add the extracted folder to your PATH.
 ```
 
 Verify the download against the `SHA256SUMS` file included with each release.
