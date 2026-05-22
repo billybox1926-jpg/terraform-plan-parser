@@ -202,6 +202,87 @@ fn renders_csv_from_plan_file_without_running_terraform() {
 }
 
 #[test]
+fn renders_csv_from_state_json_without_running_terraform() {
+    let root = temp_dir("state_json");
+    let state_file = root.join("terraform.tfstate");
+    fs::write(
+        &state_file,
+        r#"{
+  "version": 4,
+  "resources": [
+    {
+      "mode": "managed",
+      "type": "aws_instance",
+      "name": "web",
+      "instances": [{}, { "index_key": 1 }]
+    },
+    {
+      "module": "module.images",
+      "mode": "data",
+      "type": "aws_ami",
+      "name": "ubuntu",
+      "instances": [{ "index_key": "latest" }]
+    }
+  ]
+}"#,
+    )
+    .expect("write state fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_terraform_plan_parser"))
+        .arg(".")
+        .arg("--state-json")
+        .arg(&state_file)
+        .arg("--format")
+        .arg("csv")
+        .arg("--include-action")
+        .arg("managed")
+        .env("PATH", "")
+        .output()
+        .expect("run terraform_plan_parser");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "resource_type,resource_name,action\naws_instance,web,managed\naws_instance,web[1],managed\n"
+    );
+    assert!(String::from_utf8_lossy(&output.stderr).is_empty());
+
+    fs::remove_dir_all(root).expect("remove temp dir");
+}
+
+#[test]
+fn dry_run_reports_state_json_without_running_terraform() {
+    let root = temp_dir("dry_run_state_json");
+    let state_file = root.join("terraform.tfstate");
+    fs::write(&state_file, r#"{"version":4,"resources":[]}"#).expect("write state fixture");
+
+    let output = Command::new(env!("CARGO_BIN_EXE_terraform_plan_parser"))
+        .arg(".")
+        .arg("--state")
+        .arg(&state_file)
+        .arg("--dry-run")
+        .env("PATH", "")
+        .output()
+        .expect("run terraform_plan_parser");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Dry run: would read Terraform state JSON file"));
+    assert!(stdout.contains("terraform.tfstate"));
+    assert!(String::from_utf8_lossy(&output.stderr).is_empty());
+
+    fs::remove_dir_all(root).expect("remove temp dir");
+}
+
+#[test]
 fn renders_csv_from_piped_stdin_before_plan_file_or_terraform() {
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/plan.ndjson");
     let mut child = Command::new(env!("CARGO_BIN_EXE_terraform_plan_parser"))

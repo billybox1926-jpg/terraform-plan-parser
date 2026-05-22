@@ -172,6 +172,22 @@ pub fn render_changes(
     }
 }
 
+pub fn render_inventory(
+    resource_changes: &[ResourceChange],
+    abs_path: &std::path::Path,
+    format: &Format,
+    no_emoji: bool,
+    quiet: bool,
+    no_header: bool,
+) -> String {
+    match format {
+        Format::Text => render_inventory_text(resource_changes, abs_path, no_emoji, quiet),
+        Format::Json => render_json(resource_changes),
+        Format::Csv => render_csv(resource_changes, no_header),
+        Format::Table => render_inventory_table(resource_changes, abs_path, no_emoji, quiet),
+    }
+}
+
 pub fn render_text(
     resource_changes: &[ResourceChange],
     abs_path: &std::path::Path,
@@ -226,6 +242,49 @@ pub fn render_text(
         output.push_str(&render_summary_line(counts, no_emoji));
     }
     output
+}
+
+pub fn render_inventory_text(
+    resource_changes: &[ResourceChange],
+    abs_path: &std::path::Path,
+    no_emoji: bool,
+    quiet: bool,
+) -> String {
+    let mut output = String::new();
+    if resource_changes.is_empty() {
+        let prefix = if no_emoji { "" } else { "✅ " };
+        output.push_str(&format!(
+            "{}No resources found in Terraform state '{}'.\n",
+            prefix,
+            abs_path.display()
+        ));
+        if !quiet {
+            output.push_str(&render_inventory_summary(resource_changes.len(), no_emoji));
+        }
+        return output;
+    }
+
+    let prefix = if no_emoji { "" } else { "📦 " };
+    output.push_str(&format!(
+        "{}Resources in Terraform state '{}':\n",
+        prefix,
+        abs_path.display()
+    ));
+    for change in resource_changes {
+        output.push_str(&format!(
+            "* {} {} ({})\n",
+            change.resource_type, change.resource_name, change.action
+        ));
+    }
+    if !quiet {
+        output.push_str(&render_inventory_summary(resource_changes.len(), no_emoji));
+    }
+    output
+}
+
+pub fn render_inventory_summary(resource_count: usize, no_emoji: bool) -> String {
+    let symbol = if no_emoji { "*" } else { "📦" };
+    format!("Inventory:\n {symbol} {resource_count} resources\n")
 }
 
 pub fn render_json(resource_changes: &[ResourceChange]) -> String {
@@ -305,6 +364,63 @@ pub fn render_table(
     }
     if !quiet {
         output.push_str(&render_summary_line(counts, no_emoji));
+    }
+    output
+}
+
+pub fn render_inventory_table(
+    resource_changes: &[ResourceChange],
+    abs_path: &std::path::Path,
+    no_emoji: bool,
+    quiet: bool,
+) -> String {
+    if resource_changes.is_empty() {
+        let mut output = format!(
+            "No resources found in Terraform state '{}'.\n",
+            abs_path.display()
+        );
+        if !quiet {
+            output.push_str(&render_inventory_summary(resource_changes.len(), no_emoji));
+        }
+        return output;
+    }
+
+    let type_width = resource_changes
+        .iter()
+        .map(|change| change.resource_type.len())
+        .chain(["Resource Type".len()])
+        .max()
+        .unwrap_or("Resource Type".len());
+    let name_width = resource_changes
+        .iter()
+        .map(|change| change.resource_name.len())
+        .chain(["Resource Name".len()])
+        .max()
+        .unwrap_or("Resource Name".len());
+    let mode_width = resource_changes
+        .iter()
+        .map(|change| change.action.len())
+        .chain(["Mode".len()])
+        .max()
+        .unwrap_or("Mode".len());
+
+    let mut output = format!("Resources in Terraform state '{}':\n", abs_path.display());
+    output.push_str(&format!(
+        "{:type_width$}  {:name_width$}  {:mode_width$}\n",
+        "Resource Type", "Resource Name", "Mode"
+    ));
+    output.push_str(&format!(
+        "{:-<type_width$}  {:-<name_width$}  {:-<mode_width$}\n",
+        "", "", ""
+    ));
+    for change in resource_changes {
+        output.push_str(&format!(
+            "{:type_width$}  {:name_width$}  {:mode_width$}\n",
+            change.resource_type, change.resource_name, change.action
+        ));
+    }
+    if !quiet {
+        output.push_str(&render_inventory_summary(resource_changes.len(), no_emoji));
     }
     output
 }

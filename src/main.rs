@@ -69,24 +69,39 @@ fn main() {
         parser::TerraformInput::Directory(directory) => directory.as_path(),
         parser::TerraformInput::JsonPlanFile(plan_file)
         | parser::TerraformInput::BinaryPlanFile(plan_file) => plan_file.as_path(),
+        parser::TerraformInput::StateFile(state_file) => state_file.as_path(),
         parser::TerraformInput::Compare { new, .. } => new.as_path(),
     };
 
-    let rendered_output = renderer::render_changes(
-        &resource_changes,
-        display_path,
-        &settings.format,
-        settings.no_emoji,
-        settings.quiet,
-        settings.no_header,
-    );
+    let is_state_input = matches!(&input, parser::TerraformInput::StateFile(_));
+    let rendered_output = if is_state_input {
+        renderer::render_inventory(
+            &resource_changes,
+            display_path,
+            &settings.format,
+            settings.no_emoji,
+            settings.quiet,
+            settings.no_header,
+        )
+    } else {
+        renderer::render_changes(
+            &resource_changes,
+            display_path,
+            &settings.format,
+            settings.no_emoji,
+            settings.quiet,
+            settings.no_header,
+        )
+    };
     renderer::write_rendered_output(settings.output_file.as_deref(), &rendered_output)
         .unwrap_or_else(|error| {
             tracing::error!("{error}");
             std::process::exit(1);
         });
 
-    renderer::write_github_summary_if_enabled(&settings, display_path, &resource_changes);
+    if !is_state_input {
+        renderer::write_github_summary_if_enabled(&settings, display_path, &resource_changes);
+    }
 
     if parser::has_fail_on_actions(&resource_changes, &settings.fail_on) {
         tracing::error!("Plan contains forbidden actions matching --fail-on criteria");
@@ -98,12 +113,13 @@ fn main() {
 mod tests {
     use crate::cli::{app_settings, Cli, ConfigFile, SortBy};
     use crate::parser::{
-        count_actions, filter_changes, has_fail_on_actions, parse_plan_output,
+        count_actions, filter_changes, has_fail_on_actions, parse_plan_output, parse_state_output,
         sort_resource_changes, ChangeCounts, Format, ResourceChange, TerraformInput,
     };
     use crate::renderer::{
         append_github_step_summary, csv_escape, render_csv, render_github_step_summary,
-        render_json, render_summary_line, render_table, render_text, write_rendered_output,
+        render_inventory_text, render_json, render_summary_line, render_table, render_text,
+        write_rendered_output,
     };
     use crate::terraform::render_dry_run;
     use clap::Parser;
@@ -174,6 +190,61 @@ not-json
                 resource_name: "web".to_string(),
                 action: "replace".to_string(),
             }]
+        );
+    }
+
+    #[test]
+    fn parses_terraform_state_resources_as_inventory() {
+        let state = r#"{
+    "version": 4,
+    "terraform_version": "1.6.0",
+    "resources": [
+        {
+            "mode": "managed",
+            "type": "aws_instance",
+            "name": "web",
+            "instances": [
+                {},
+                { "index_key": 1 }
+            ]
+        },
+        {
+            "module": "module.images",
+            "mode": "data",
+            "type": "aws_ami",
+            "name": "ubuntu",
+            "instances": [
+                { "index_key": "latest" }
+            ]
+        },
+        {
+            "mode": "managed",
+            "type": "aws_s3_bucket",
+            "name": "empty",
+            "instances": []
+        }
+    ]
+}"#;
+
+        assert_eq!(
+            parse_state_output(state).expect("parse state"),
+            vec![
+                ResourceChange {
+                    resource_type: "aws_instance".to_string(),
+                    resource_name: "web".to_string(),
+                    action: "managed".to_string(),
+                },
+                ResourceChange {
+                    resource_type: "aws_instance".to_string(),
+                    resource_name: "web[1]".to_string(),
+                    action: "managed".to_string(),
+                },
+                ResourceChange {
+                    resource_type: "aws_ami".to_string(),
+                    resource_name: "module.images.ubuntu[\"latest\"]".to_string(),
+                    action: "data".to_string(),
+                },
+            ]
         );
     }
 
@@ -585,6 +656,22 @@ not-json
     }
 
     #[test]
+    fn renders_inventory_text_with_resource_count() {
+        let changes = vec![ResourceChange {
+            resource_type: "aws_instance".to_string(),
+            resource_name: "web".to_string(),
+            action: "managed".to_string(),
+        }];
+        let output =
+            render_inventory_text(&changes, Path::new("/tmp/terraform.tfstate"), true, false);
+
+        assert!(output.contains("Resources in Terraform state"));
+        assert!(output.contains("aws_instance web (managed)"));
+        assert!(output.contains("Inventory:"));
+        assert!(output.contains("* 1 resources"));
+    }
+
+    #[test]
     fn hides_summary_counts_when_quiet() {
         let changes = vec![ResourceChange {
             resource_type: "aws_instance".to_string(),
@@ -703,6 +790,18 @@ not-json
     }
 
     #[test]
+    fn renders_dry_run_for_state_file_without_terraform_command() {
+        let output = render_dry_run(&TerraformInput::StateFile(
+            Path::new("/tmp/project/terraform.tfstate").to_path_buf(),
+        ));
+
+        assert_eq!(
+            output,
+            "Dry run: would read Terraform state JSON file '/tmp/project/terraform.tfstate'. No Terraform command would be executed.\n"
+        );
+    }
+
+    #[test]
     fn accepts_table_format_from_cli() {
         let cli = Cli::parse_from(["terraform_plan_parser", "--format", "table"]);
         assert!(matches!(cli.format, Some(Format::Table)));
@@ -715,6 +814,15 @@ not-json
 
         assert!(error.contains("plan file not found"));
         assert!(error.contains("./missing-plan.json"));
+    }
+
+    #[test]
+    fn resolve_state_file_input_reports_missing_file() {
+        let error = crate::terraform::resolve_state_file_input(Path::new("./missing.tfstate"))
+            .expect_err("missing state file should fail");
+
+        assert!(error.contains("state file not found"));
+        assert!(error.contains("./missing.tfstate"));
     }
 
     #[test]
