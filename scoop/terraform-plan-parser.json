@@ -1,4 +1,4 @@
-﻿{
+{
   "version": "0.1.3",
   "description": "Lightweight CLI for rendering Terraform plan JSON as clean summaries.",
   "homepage": "https://github.com/billybox1926-jpg/terraform-plan-parser",
