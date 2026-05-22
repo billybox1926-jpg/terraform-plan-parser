@@ -32,6 +32,16 @@ A lightweight Rust CLI that turns Terraform plan JSON into clean summaries for l
 
 ## Installation
 
+### Scoop (Windows)
+
+Install directly from the repository manifest:
+
+```powershell
+scoop install https://raw.githubusercontent.com/billybox1926-jpg/terraform-plan-parser/main/scoop/terraform-plan-parser.json
+```
+
+This installs the native Windows x64 release ZIP from GitHub Releases. Scoop support currently targets Windows x64 only; Chocolatey and winget can be evaluated separately later.
+
 ### Homebrew (macOS/Linux)
 
 ```bash
