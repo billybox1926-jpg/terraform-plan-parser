@@ -244,11 +244,11 @@ Supported completion shells are `bash`, `elvish`, `fish`, `powershell`, and `zsh
 | Option | Description |
 | --- | --- |
 | `[DIRECTORY]` | Terraform project directory or saved `.tfplan` file to inspect. Defaults to the current directory. |
-|| `--plan-file PATH` | Read a pre-generated NDJSON/full JSON plan file, or convert a saved `.tfplan` file with `terraform show -json`. |
-|| `--state PATH` | Read a local Terraform state JSON file and render an inventory. |
-|| `--state-json PATH` | Alias for `--state`, useful when reading output from `terraform state pull`. |
-|| `--compare PATH,PATH` | Compare two plan files and show added, removed, and changed resources. Accepts NDJSON, JSON, or `.tfplan` files. |
-|| `--config PATH` | Read defaults from a specific `.terraform-plan-parser.toml` file instead of auto-discovering one. |
+| `--plan-file PATH` | Read a pre-generated NDJSON/full JSON plan file, or convert a saved `.tfplan` file with `terraform show -json`. |
+| `--state PATH` | Read a local Terraform state JSON file and render an inventory. |
+| `--state-json PATH` | Alias for `--state`, useful when reading output from `terraform state pull`. |
+| `--compare PATH,PATH` | Compare two plan files and show added, removed, and changed resources. Accepts NDJSON, JSON, or `.tfplan` files. |
+| `--config PATH` | Read defaults from a specific `.terraform-plan-parser.toml` file instead of auto-discovering one. |
 | `--output-file PATH` | Write rendered output to a file instead of stdout. |
 | `--format text|json|csv|table` | Choose text, JSON, CSV, or aligned table output. |
 | `--no-emoji` | Render text/table summaries without emoji symbols. |
@@ -369,7 +369,7 @@ Supported config keys are `plan-file`, `state-file`, `format`, `output-file`, `n
 
 `format` accepts `text`, `json`, `csv`, or `table`. `sort-by` accepts `type`, `name`, or `action`. Filter lists accept exact values or glob patterns. The `only-*` keys are shorthand action filters.
 
-Configuration keys use kebab-case TOML names, such as `plan-file` and `sort-by`, not Rust snake_case field names. CLI options override config defaults for `plan-file`, `output-file`, `format`, and filter lists. Boolean options are enabled when either the config value or CLI flag is true. Relative `plan-file` and `output-file` values are resolved from the config file directory.
+Configuration keys use kebab-case TOML names, such as `plan-file` and `sort-by`, not Rust snake_case field names. CLI options override config defaults for `plan-file`, `state-file`, `output-file`, `format`, and filter lists. Boolean options are enabled when either the config value or CLI flag is true. Relative `plan-file`, `state-file`, and `output-file` values are resolved from the config file directory.
 
 ## Project management
 
