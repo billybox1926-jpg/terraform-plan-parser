@@ -41,6 +41,18 @@ cargo build            # Verify the project builds
 
 The CI workflow runs each of these on every push and pull request.
 
+## Release build notes
+
+The release workflow builds Linux, macOS, and Windows artifacts from tag pushes. Linux ARM64 uses the `aarch64-unknown-linux-gnu` Rust target and installs `gcc-aarch64-linux-gnu` on the Ubuntu runner.
+
+When changing release workflow logic, keep the Linux ARM64 build step wired to the matching cross-linker:
+
+```yaml
+CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+```
+
+That target-specific Cargo environment variable avoids relying on host linker defaults during cross-compilation.
+
 ## No hidden or bidirectional Unicode characters
 
 CI rejects source files that contain characters from any of these ranges:
