@@ -358,6 +358,7 @@ Configuration keys use kebab-case TOML names, such as `plan-file` and `sort-by`,
 ## Acknowledgements
 
 This project is maintained by BillyBox1926 and developed with an AI-assisted workflow. Contributor credit is preserved through Git history and pull request records.
+
 ## Project management
 
 This repo treats issues as an active project-management layer. Issue templates, mirrored dependency notes, label taxonomy, and maintainer workflow guidance keep the tracker readable for contributors and future maintainers.
