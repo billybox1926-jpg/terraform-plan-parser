@@ -308,7 +308,7 @@ dependencies = [
 
 [[package]]
 name = "terraform_plan_parser"
-version = "0.1.0"
+version = "0.1.3"
 dependencies = [
  "clap",
  "clap_complete",
