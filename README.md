@@ -11,7 +11,7 @@ A lightweight Rust CLI that turns Terraform plan JSON into clean summaries for l
 
 ## Features
 
-- **Colorful summary** — see at a glance what's being created (➕), updated (🔄), deleted (➖), or read (📖)
+- **Colorful summary** — see at a glance what's being created (create), updated (update), deleted (delete), or read (read)
 - **Directory-aware** — point it at any Terraform project directory to run `terraform plan -json`
 - **Plan-input aware** — parse piped Terraform plan JSON from stdin, pre-generated NDJSON/full JSON plan files with `--plan-file`, or saved `.tfplan` files through `terraform show -json`
 - **State inventory support** — parse Terraform state JSON from `--state`/`--state-json` and export inventory rows with the same JSON/CSV/table tooling
@@ -234,7 +234,7 @@ Supported completion shells are `bash`, `elvish`, `fish`, `powershell`, and `zsh
 | `--compare PATH,PATH` | Compare two plan files and show added, removed, and changed resources. Accepts NDJSON, JSON, or `.tfplan` files. |
 | `--config PATH` | Read defaults from a specific `.terraform-plan-parser.toml` file instead of auto-discovering one. |
 | `--output-file PATH` | Write rendered output to a file instead of stdout. |
-| `--format text|json|csv|table` | Choose text, JSON, CSV, or aligned table output. |
+| `--format text\|json\|csv\|table` | Choose text, JSON, CSV, or aligned table output. |
 | `--no-emoji` | Render text/table summaries without emoji symbols. |
 | `--dry-run` | Validate the selected input and print the Terraform command or file read that would happen, without loading a plan. |
 | `--verbose`, `-v` | Enable debug diagnostics on stderr. |
@@ -244,7 +244,7 @@ Supported completion shells are `bash`, `elvish`, `fish`, `powershell`, and `zsh
 | `--include-action GLOB[,GLOB]...` | Keep only actions matching exact values or glob patterns. |
 | `--exclude-action GLOB[,GLOB]...` | Remove actions matching exact values or glob patterns. |
 | `--fail-on ACTION[,ACTION]...` | Exit non-zero when filtered results contain one of the listed actions. |
-| `--completions bash|elvish|fish|powershell|zsh` | Generate a shell completion script and exit. |
+| `--completions bash\|elvish\|fish\|powershell\|zsh` | Generate a shell completion script and exit. |
 | `--help`, `-h` | Print help text. |
 
 ## Filtering
