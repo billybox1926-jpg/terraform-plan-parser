@@ -1,6 +1,6 @@
 # Roadmap — terraform-plan-parser
 
-This roadmap summarizes completed foundations, current release-readiness priorities, near-term improvements, and longer-term expansion ideas. GitHub Issues remain the source of truth for active scoped work, acceptance criteria, dependencies, labels, and milestones.
+This roadmap summarizes completed foundations, current maintenance priorities, near-term improvements, and longer-term expansion ideas. GitHub Issues remain the source of truth for active scoped work, acceptance criteria, dependencies, labels, and milestones.
 
 ## Completed foundations
 
@@ -49,40 +49,51 @@ These items form the current stable base of the project.
   - Wiki acts as an operations/navigation surface that links back to README and `docs/`.
   - Tracked by #79.
 - [x] Add cross-platform release binaries
-  - GitHub Actions workflow builds Linux (tar.gz), macOS (tar.gz), and Windows (zip) release artifacts with SHA256 checksums.
+  - GitHub Actions workflow builds Linux, macOS, and Windows release artifacts with SHA256 checksums.
   - Tracked by #24.
+- [x] Expand release support beyond Intel-only builds
+  - Release artifacts now cover x86_64 and ARM64 targets for Linux and macOS, plus native Windows x64.
+  - Tracked by #102.
 - [x] Add Homebrew formula support
-  - `brew install billybox1926-jpg/tap/terraform-plan-parser` installs on macOS and Linux (Intel).
+  - `brew install billybox1926-jpg/tap/terraform-plan-parser` installs on macOS and Linux.
   - Formula maintained in [homebrew-tap](https://github.com/billybox1926-jpg/homebrew-tap) repository.
   - Tracked by #25.
+- [x] Add Windows Scoop support
+  - Native Windows x64 installs can use the repo-hosted Scoop manifest.
+  - Tracked by #107.
 - [x] Fix Windows test harness mock resolution
   - Mock tests now use mock-only PATH to prevent system terraform.exe from being found before mock terraform.bat.
   - Tracked by #100.
+- [x] Add cross-platform CI test jobs
+  - CI coverage includes Windows and macOS in addition to Ubuntu for portability-sensitive CLI behavior.
+  - Tracked by #104.
 - [x] Implement plan diffing between two plan files
   - `--compare` flag shows added, removed, and changed resources between two plans.
   - Supports all output formats (text, JSON, CSV, table).
   - Tracked by #26.
+- [x] Add Terraform state JSON inventory parsing
+  - `--state` and `--state-json` render local Terraform state JSON as inventory rows.
+  - Tracked by #27.
 - [x] Add security policy
   - `SECURITY.md` with supported versions and responsible disclosure guidance.
   - Tracked by #105.
 - [x] Add changelog
   - `CHANGELOG.md` tracks release history and notable changes.
   - Tracked by #106.
+- [x] Add README project visual
+  - `docs/assets/project-visual.svg` gives the README a lightweight repo-native visual.
+  - Tracked by #131.
 
 ## Next
 
-- [ ] Expand release support beyond Intel-only builds (#102)
-  - Add Apple Silicon (ARM64) macOS and Linux ARM binaries
-  - Add cross-platform CI test jobs (Windows, macOS) (#104)
-  - Update Homebrew formula for ARM support
+- [ ] Add funding metadata after Sponsors setup is approved (#133)
+  - Add `.github/FUNDING.yml` only after the GitHub Sponsors profile is live.
+  - Keep GitHub Releases as the official source for binaries and checksums.
 
 ## Later
 
-These are larger expansion ideas that need stable foundations first.
+These are larger expansion ideas that should become GitHub Issues before implementation.
 
-- [ ] Add support for parsing Terraform state files
-  - Build toward inventory, drift-analysis, and reporting workflows.
-  - Tracked by #27.
 - [ ] Add additional selectors
   - Support resource name, address, module path, or provider filters.
 - [ ] Add config helper commands
