@@ -5,6 +5,8 @@
 ![Rust](https://img.shields.io/badge/Rust-2021-orange)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 
+[![Sponsor](https://img.shields.io/badge/Sponsor-❤-ea4aaa.svg?logo=GitHub)](https://github.com/sponsors/billybox1926-jpg)
+
 ![Terraform Plan Parser project visual showing Terraform plan JSON flowing through a Rust CLI parser into clean summaries, CI guardrails, and release artifacts.](docs/assets/project-visual.svg)
 
 A lightweight Rust CLI that turns Terraform plan JSON into clean summaries for local reviews, CI logs, and release guardrails.
